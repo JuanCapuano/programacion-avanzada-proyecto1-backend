@@ -4,6 +4,16 @@ Backend para el sistema de gestión integral de una distribuidora. Construido co
 
 ---
 
+## Despliegue en Producción
+
+El servidor API backend está desplegado en **Render** y conectado a la base de datos MySQL alojada en **Railway**.
+
+* **URL de API (Render):** [https://programacion-avanzada-proyecto1-backend.onrender.com](https://programacion-avanzada-proyecto1-backend.onrender.com)
+* **Documentación Interactiva (Swagger UI):** [https://programacion-avanzada-proyecto1-backend.onrender.com/api](https://programacion-avanzada-proyecto1-backend.onrender.com/api)
+* **Base de Datos:** MySQL 8.0 (Railway Cloud)
+
+---
+
 ## Stack tecnológico
 
 - **Framework**: NestJS 11.x
