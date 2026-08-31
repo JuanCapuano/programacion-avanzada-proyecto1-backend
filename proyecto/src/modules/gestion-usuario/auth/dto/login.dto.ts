@@ -8,7 +8,7 @@ export class LoginDto {
 
   @IsString()
   @IsNotEmpty({ message: 'La contraseña no puede estar vacía.' })
-  @Length(8, 20, { message: 'La contraseña debe tener entre 6 y 20 caracteres.' })
+  @Length(4, 20, { message: 'La contraseña debe tener entre 6 y 20 caracteres.' })
   contrasena: string;
 
   @IsNotEmpty({ message: 'El id de la empresa no puede estar vacío.' })
