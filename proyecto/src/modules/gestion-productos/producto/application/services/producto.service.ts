@@ -28,7 +28,6 @@ import { ProductoUniquenessValidator } from '../../infraestructure/validators/pr
 import { UsuarioValidator } from 'src/modules/common/utils/validation/usuario-validator';
 import { ProductoDeletePolicy } from '../policies/producto-delete.policy';
 import { GeneradorDenominacion } from '../../domain/services/generador-denominacion.service';
-import { OrigenDenominacion } from '../../domain/enums/origen-denominacion.enum';
 
 @Injectable()
 export class ProductoService {
@@ -61,66 +60,73 @@ export class ProductoService {
   private readonly ENTITY_NAME = 'Producto';
 
   async create(dto: CreateProductoDto) {
-    this.logger.log(
-      `Creando un nuevo ${this.ENTITY_NAME} con denominación: ${dto.denominacion} a: ${dto.denominacion}`,
-    );
+    this.logger.log(`Creando un nuevo ${this.ENTITY_NAME}`);
 
-    // Orquestar todas las validaciones
     const { marca, linea, usuario } =
       await this.validarYPrepararCreacion(dto);
 
-     // Construir entidad base desde el DTO
+    // La denominación no se copia del DTO: solo entra a la entidad por el dominio.
+    const { denominacion: denominacionIngresada, ...datos } = dto;
+
     const entity = new Producto();
-      Object.assign(entity, dto);
-      entity.linea = linea;
-      entity.marca = marca;
-      entity.usuarioCreated = usuario;
- 
-  if (dto.denominacion) {
-    entity.renombrarManualmente(dto.denominacion); // Acá usaria la manual
-  } else {
-    entity.generarDenominacionAutomatica(this.generadorDenominacion, { // Aca la automatica
-      marca: marca.denominacion,
-      linea: linea.denominacion,
-    });
-  }
-   
-  const { denominacion } = await this.repository.save(entity);
-  
-  return MessageFrontUtils.createSimple(
+    Object.assign(entity, datos);
+    entity.linea = linea;
+    entity.marca = marca;
+    entity.usuarioCreated = usuario;
+
+    // Dominio: decide si nace automática o manual (US-10 / US-11).
+    entity.inicializarDenominacion(
+      this.generadorDenominacion,
+      { marca: marca.denominacion, linea: linea.denominacion },
+      denominacionIngresada,
+    );
+
+    // Infraestructura: unicidad sobre el nombre final ya normalizado.
+    await this.uniquenessValidator.validarDenominacionUnica(entity.denominacion);
+
+    const { denominacion } = await this.repository.save(entity);
+
+    return MessageFrontUtils.createSimple(
       `${this.ENTITY_NAME}`,
       denominacion,
       'creada',
     );
   }
 
-
-
   async update(id: number, dto: UpdateProductoDto) {
-    this.logger.log(`Actualizandox  ${this.ENTITY_NAME} con ID: ${id}`);
+    this.logger.log(`Actualizando ${this.ENTITY_NAME} con ID: ${id}`);
 
     const { marca, linea, usuario } =
       await this.validarYPrepararActualizacion(id, dto);
 
-
-     const entity = await this.repository.findOne(id);
+    const entity = await this.repository.findOne(id);
     if (!entity) {
-      throw new NotFoundException(`${this.ENTITY_NAME} con ID ${id} no encontrado.`);
+      throw new NotFoundException(
+        `${this.ENTITY_NAME} con ID ${id} no encontrado.`,
+      );
     }
 
-      // Aplicar cambios del DTO a la entidad
-    Object.assign(entity, dto);
+    // La denominación no se copia del DTO: solo entra a la entidad por el dominio.
+    const { denominacion: denominacionIngresada, ...datos } = dto;
+
+    Object.assign(entity, datos);
     entity.linea = linea;
     entity.marca = marca;
     entity.usuarioUpdated = usuario;
 
-    if (dto.denominacion !== undefined) {
-      entity.renombrarManualmente(dto.denominacion);
-    } else {
-      entity.sincronizarDenominacion(this.generadorDenominacion, {
-        marca: marca.denominacion,
-        linea: linea.denominacion,
-      });
+    // Dominio: decide si el nombre fue editado o se sincroniza (US-11).
+    const denominacionCambio = entity.actualizarDenominacion(
+      this.generadorDenominacion,
+      { marca: marca.denominacion, linea: linea.denominacion },
+      denominacionIngresada,
+    );
+
+    // Infraestructura: unicidad solo si el nombre final cambió.
+    if (denominacionCambio) {
+      await this.uniquenessValidator.validarDenominacionUnica(
+        entity.denominacion,
+        id,
+      );
     }
 
     const { denominacion } = await this.repository.save(entity);
@@ -131,9 +137,6 @@ export class ProductoService {
       'editada',
     );
   }
-
-
-
 
   async findByRapido(
     codigo: string,
@@ -350,8 +353,7 @@ export class ProductoService {
   private async validarYPrepararCreacion(dto: CreateProductoDto) {
     // Validar datos  (Domain - sin DB)
     this.intrinsicValidationService.validarDatosBasicos({
-      //denominacion: dto.denominacion,
-      denominacion: dto.denominacion ?? '',
+      denominacion: dto.denominacion,
       marcaId: dto.marcaId,
       lineaId: dto.lineaId,
       alicuotaIva: dto.alicuotaIva,
@@ -359,13 +361,7 @@ export class ProductoService {
 
 
 
-    // Validar unicidad (Infrastructure - DB)
-    if (dto.denominacion) {
-  await this.uniquenessValidator.validarDenominacionUnica(dto.denominacion);
-  }
-    //await this.uniquenessValidator.validarDenominacionUnica(dto.denominacion);
-
-
+    // La unicidad de la denominación se valida en create(), sobre el nombre final.
 
     if (dto.codigoProveedor) {
       await this.uniquenessValidator.validarCodigoProveedorUnico(
@@ -420,20 +416,14 @@ export class ProductoService {
 
     //  Validar datos intrínsecos
     this.intrinsicValidationService.validarDatosBasicos({
-      denominacion: dto.denominacion ?? productoActual.denominacion,
+      denominacion: dto.denominacion,
       marcaId: dto.marcaId ?? productoActual.marcaId,
       lineaId: dto.lineaId ?? productoActual.lineaId,
       alicuotaIva: dto.alicuotaIva ?? productoActual.alicuotaIva,
 
     });
 
-    // Validar unicidad (excluyendo el ID actual)
-    if (dto.denominacion) {
-      await this.uniquenessValidator.validarDenominacionUnica(
-        dto.denominacion,
-        id,
-      );
-    }
+    // La unicidad de la denominación se valida en update(), sobre el nombre final.
 
     // Validar entidades relacionadas
     const { marca, linea, } =
@@ -469,10 +459,20 @@ export class ProductoService {
     const marca = await this.marcaService.findEntityById(entity.marcaId);
     const linea = await this.lineaService.findEntityById(entity.lineaId);
 
+    const denominacionAnterior = entity.denominacion;
+
     entity.generarDenominacionAutomatica(this.generadorDenominacion, {
       marca: marca.denominacion,
       linea: linea.denominacion,
     });
+
+    // Infraestructura: unicidad solo si el nombre final cambió.
+    if (entity.denominacion !== denominacionAnterior) {
+      await this.uniquenessValidator.validarDenominacionUnica(
+        entity.denominacion,
+        id,
+      );
+    }
 
     const usuario = await this.usuarioService.findOne(usuarioId);
     entity.usuarioUpdated = usuario;

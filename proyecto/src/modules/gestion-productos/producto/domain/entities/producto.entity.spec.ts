@@ -148,6 +148,102 @@ describe('Producto (Aggregate Root) — denominación y presentación', () => {
     });
   });
 
+  describe('alta: inicializarDenominacion', () => {
+    it('sin texto ingresado genera la denominación automática', () => {
+      const producto = new Producto();
+
+      producto.inicializarDenominacion(generador, cocaGaseosas, undefined);
+
+      expect(producto.denominacion).toBe('coca-cola gaseosas');
+      expect(producto.origenDenominacion).toBe(OrigenDenominacion.AUTOMATICA);
+    });
+
+    it('con texto ingresado lo respeta como manual', () => {
+      const producto = new Producto();
+
+      producto.inicializarDenominacion(generador, cocaGaseosas, 'Coca Clásica');
+
+      expect(producto.denominacion).toBe('coca clásica');
+      expect(producto.origenDenominacion).toBe(OrigenDenominacion.MANUAL);
+    });
+
+    it('un texto vacío no se interpreta como "generar": se rechaza', () => {
+      const producto = new Producto();
+
+      expect(() =>
+        producto.inicializarDenominacion(generador, cocaGaseosas, ''),
+      ).toThrow('La denominación no puede estar vacía.');
+    });
+  });
+
+  describe('edición: actualizarDenominacion', () => {
+    it('reenviar el mismo nombre (formulario completo) NO lo pasa a manual', () => {
+      const producto = productoAutomatico();
+
+      const cambio = producto.actualizarDenominacion(
+        generador,
+        cocaGaseosas,
+        'coca-cola gaseosas',
+      );
+
+      expect(cambio).toBe(false);
+      expect(producto.origenDenominacion).toBe(OrigenDenominacion.AUTOMATICA);
+    });
+
+    it('el mismo nombre con otras mayúsculas o espacios tampoco cuenta como edición', () => {
+      const producto = productoAutomatico();
+
+      producto.actualizarDenominacion(
+        generador,
+        cocaGaseosas,
+        '  Coca-Cola   GASEOSAS ',
+      );
+
+      expect(producto.origenDenominacion).toBe(OrigenDenominacion.AUTOMATICA);
+    });
+
+    it('reenviar el nombre viejo junto con otra marca regenera la denominación', () => {
+      const producto = productoAutomatico();
+
+      const cambio = producto.actualizarDenominacion(
+        generador,
+        { marca: 'Pepsi', linea: 'Gaseosas' },
+        'coca-cola gaseosas',
+      );
+
+      expect(cambio).toBe(true);
+      expect(producto.denominacion).toBe('pepsi gaseosas');
+      expect(producto.origenDenominacion).toBe(OrigenDenominacion.AUTOMATICA);
+    });
+
+    it('un nombre distinto del actual la pasa a manual', () => {
+      const producto = productoAutomatico();
+
+      const cambio = producto.actualizarDenominacion(
+        generador,
+        cocaGaseosas,
+        'coca clásica',
+      );
+
+      expect(cambio).toBe(true);
+      expect(producto.denominacion).toBe('coca clásica');
+      expect(producto.origenDenominacion).toBe(OrigenDenominacion.MANUAL);
+    });
+
+    it('sin texto, un producto manual conserva su nombre aunque cambie la marca', () => {
+      const producto = productoAutomatico();
+      producto.renombrarManualmente('coca clásica');
+
+      const cambio = producto.actualizarDenominacion(generador, {
+        marca: 'Pepsi',
+        linea: 'Gaseosas',
+      });
+
+      expect(cambio).toBe(false);
+      expect(producto.denominacion).toBe('coca clásica');
+    });
+  });
+
   describe('productos anteriores al CR-005', () => {
     it('un producto sin origen definido se trata como manual y no se pisa', () => {
       const existente = new Producto();

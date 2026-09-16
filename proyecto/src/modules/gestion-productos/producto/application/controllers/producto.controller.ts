@@ -7,9 +7,11 @@ import {
   Delete,
   Logger,
   ParseIntPipe,
+  Patch,
   Put,
   Query,
   UsePipes,
+  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 
@@ -31,11 +33,13 @@ import { NormalizeDenominacionSearchPipe } from 'src/modules/common/pipes/normal
 import { DenominacionBusquedaDto } from 'src/modules/common/dto/denominacion-busqueda.dto';
 import { SearchProductoRapidoDto } from '../../dto/search-producto-rapido.dto';
 import { ProductoService } from '../services/producto.service';
+import { ProductoDomainExceptionFilter } from '../filters/producto-domain-exception.filter';
 
 
 @ApiTags('Gestion Productos')
 @Controller('producto')
 @UseGuards(AuthGuard)
+@UseFilters(ProductoDomainExceptionFilter)
 export class ProductoController {
   private readonly logger = new Logger(ProductoController.name);
   constructor(private readonly service: ProductoService) {}
@@ -165,6 +169,22 @@ export class ProductoController {
   ) {
     this.logger.log(`Actualizando  ${this.ENTITY_NAME} con ID: ${id}`);
     return this.service.update(id, updateDto);
+  }
+
+  /**
+   * US-11: descarta la denominación manual y vuelve a generarla a partir de
+   * marca, línea y presentación. El producto queda en modo automático.
+   */
+  @Patch(':id/restaurar-denominacion')
+  @Roles('Root', 'Administrador', 'Empleado')
+  restaurarDenominacion(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('usuarioId', ParseIntPipe) usuarioId: number,
+  ) {
+    this.logger.log(
+      `Restaurando denominación automática de ${this.ENTITY_NAME} con ID: ${id}`,
+    );
+    return this.service.restaurarDenominacionAutomatica(id, usuarioId);
   }
 
   @Delete(':id')

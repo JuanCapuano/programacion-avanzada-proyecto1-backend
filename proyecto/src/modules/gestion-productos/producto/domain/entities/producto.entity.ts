@@ -288,10 +288,7 @@ export class Producto {
    * queda exactamente como estaba.
    */
   renombrarManualmente(denominacion: string): void {
-    const normalizada = (denominacion ?? '')
-      .trim()
-      .replace(/\s+/g, ' ')
-      .toLowerCase();
+    const normalizada = Producto.normalizarDenominacion(denominacion);
 
     if (!normalizada) {
       throw new ProductoDomainException(
@@ -306,5 +303,61 @@ export class Producto {
 
     this.denominacion = normalizada;
     this.origenDenominacion = OrigenDenominacion.MANUAL;
+  }
+
+  /**
+   * Alta (US-10 / US-11): decide cómo nace la denominación.
+   * - Sin texto del usuario  → se genera y el producto queda AUTOMATICA.
+   * - Con texto del usuario  → se respeta y el producto queda MANUAL.
+   *
+   * Solo `undefined` significa "no ingresó nada". Un texto vacío es un
+   * intento de nombre inválido y se rechaza.
+   */
+  inicializarDenominacion(
+    generador: GeneradorDenominacion,
+    componentes: Omit<ComponentesDenominacion, 'presentacion'>,
+    denominacionIngresada?: string,
+  ): void {
+    if (denominacionIngresada === undefined) {
+      this.generarDenominacionAutomatica(generador, componentes);
+      return;
+    }
+    this.renombrarManualmente(denominacionIngresada);
+  }
+
+  /**
+   * Edición (US-11): decide qué pasa con la denominación al guardar cambios.
+   * - Texto distinto del actual → el usuario la editó: pasa a MANUAL.
+   * - Sin texto, o igual al actual → no hubo edición del nombre: se
+   *   sincroniza (se regenera solo si es AUTOMATICA).
+   *
+   * Comparar contra el valor actual es necesario porque los formularios de
+   * edición reenvían todos los campos, incluido el nombre sin cambios.
+   *
+   * @returns true si la denominación cambió.
+   */
+  actualizarDenominacion(
+    generador: GeneradorDenominacion,
+    componentes: Omit<ComponentesDenominacion, 'presentacion'>,
+    denominacionIngresada?: string,
+  ): boolean {
+    const anterior = this.denominacion;
+
+    const fueEditada =
+      denominacionIngresada !== undefined &&
+      Producto.normalizarDenominacion(denominacionIngresada) !== anterior;
+
+    if (fueEditada) {
+      this.renombrarManualmente(denominacionIngresada);
+    } else {
+      this.sincronizarDenominacion(generador, componentes);
+    }
+
+    return this.denominacion !== anterior;
+  }
+
+  /** Misma normalización que el resto del catálogo: minúsculas y espacios simples. */
+  private static normalizarDenominacion(texto: string | null | undefined): string {
+    return (texto ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
   }
 }
