@@ -15,7 +15,8 @@ import { AlicuotaIva } from 'src/modules/organizacion/enums/alicuota-iva.enum';
 export class CreateProductoDto {
   @Transform(({ value }) => value.trim().toLowerCase())
   @IsString({ message: 'La denominación debe ser una cadena de texto.' }) // Valida que sea string
-  @IsNotEmpty({ message: 'La denominación no puede estar vacía.' }) // Valida que no esté vacía
+  //@IsNotEmpty({ message: 'La denominación no puede estar vacía.' }) // Valida que no esté vacía
+  @IsOptional()
   @MaxLength(255, { message: 'La denominación no puede estar vacía.' })
   /*  @Matches(/^[A-Za-z0-9 áéíóúÁÉÍÓÚñÑ.\-/]+$/, {
     message:
@@ -24,8 +25,10 @@ export class CreateProductoDto {
   @Matches(/^[\w áéíóúÁÉÍÓÚñÑ.\-/%]+$/, {
     message: 'La denominación contiene caracteres inválidos ',
   })
-  denominacion: string;
-
+  @Transform(({ value }) => value?.trim().replace(/\s+/g, ' ').toLowerCase()) // Para normalizar el texto ingresado
+  denominacion?: string; // Opcional, si no viene, se genera automaticamente. El usuario puede ingresarla el manualmente si quisiera.
+  
+  
   @IsOptional()
   @IsString()
   observacion?: string;

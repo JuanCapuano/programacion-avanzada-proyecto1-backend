@@ -313,17 +313,27 @@ export class ProductoService {
    * Orquesta todas las validaciones necesarias para crear un producto
    * @private
    */
+ 
+ 
   private async validarYPrepararCreacion(dto: CreateProductoDto) {
     // Validar datos  (Domain - sin DB)
     this.intrinsicValidationService.validarDatosBasicos({
-      denominacion: dto.denominacion,
+      //denominacion: dto.denominacion,
+      denominacion: dto.denominacion ?? '',
       marcaId: dto.marcaId,
       lineaId: dto.lineaId,
       alicuotaIva: dto.alicuotaIva,
     });
 
+
+
     // Validar unicidad (Infrastructure - DB)
-    await this.uniquenessValidator.validarDenominacionUnica(dto.denominacion);
+    if (dto.denominacion) {
+  await this.uniquenessValidator.validarDenominacionUnica(dto.denominacion);
+  }
+    //await this.uniquenessValidator.validarDenominacionUnica(dto.denominacion);
+
+
 
     if (dto.codigoProveedor) {
       await this.uniquenessValidator.validarCodigoProveedorUnico(
