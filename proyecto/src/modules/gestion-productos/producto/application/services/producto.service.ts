@@ -458,5 +458,31 @@ export class ProductoService {
     return { marca, linea, usuario };
   }
 
+  async restaurarDenominacionAutomatica(id: number, usuarioId: number) {
+    const entity = await this.repository.findOne(id);
+    if (!entity) {
+      throw new NotFoundException(`${this.ENTITY_NAME} con ID ${id} no encontrado.`);
+    }
+    if (!entity.marcaId || !entity.lineaId) {
+      throw new NotFoundException(`El producto con ID ${id} no tiene marca o línea asignada.`);
+    }
+    const marca = await this.marcaService.findEntityById(entity.marcaId);
+    const linea = await this.lineaService.findEntityById(entity.lineaId);
 
+    entity.generarDenominacionAutomatica(this.generadorDenominacion, {
+      marca: marca.denominacion,
+      linea: linea.denominacion,
+    });
+
+    const usuario = await this.usuarioService.findOne(usuarioId);
+    entity.usuarioUpdated = usuario;
+
+    const { denominacion } = await this.repository.save(entity);
+
+    return MessageFrontUtils.createSimple(
+      this.ENTITY_NAME,
+      denominacion,
+      'editada',
+    );
+  }
 }
