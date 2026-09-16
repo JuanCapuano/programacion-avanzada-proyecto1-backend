@@ -172,4 +172,40 @@ export class Producto {
 
   @Column({ type: 'text', nullable: true })
   codigoReferencia?: string | null;
+
+  /**
+   * Calcula el precio de venta a partir del costo y el porcentaje de margen:
+   * precio = costo + (costo * porcentaje / 100).
+   * Deja el resultado asignado en `this.precio` y lo devuelve.
+   */
+  calcularPrecio(): number {
+    const costo = this.costo ?? 0;
+    const porcentaje = this.porcentaje ?? 0;
+
+    this.precio = costo + (costo * porcentaje) / 100;
+    return this.precio;
+  }
+
+  /**
+   * Simula el resultado de aplicar un ajuste masivo de precio (CR-006), sin
+   * mutar el estado de la entidad. Quien llama decide si aplica el resultado.
+   */
+  simularAjustePrecio(
+    tipoAjuste: 'porcentaje' | 'monto',
+    valor: number,
+  ): { precioResultante: number; porcentajeResultante: number; valido: boolean } {
+    const precio = this.precio ?? 0;
+    const costo = this.costo ?? 0;
+
+    const precioResultante =
+      tipoAjuste === 'porcentaje' ? precio * (1 + valor / 100) : precio + valor;
+
+    const porcentajeResultante = (precioResultante / costo - 1) * 100;
+
+    return {
+      precioResultante,
+      porcentajeResultante,
+      valido: precioResultante > 0,
+    };
+  }
 }

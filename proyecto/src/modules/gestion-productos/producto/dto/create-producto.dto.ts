@@ -102,9 +102,6 @@ export class CreateProductoDto {
   @IsNumber()
   porcentaje?: number;
 
-  @IsOptional()
-  @IsNumber()
-  precio: number;
 
   createdAt?: Date;
 

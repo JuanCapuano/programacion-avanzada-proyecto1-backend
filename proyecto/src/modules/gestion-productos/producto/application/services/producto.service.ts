@@ -18,6 +18,7 @@ import { IProductoRepository } from '../../domain/interfaces/producto.repository
 import { CreateProductoDto } from '../../dto/create-producto.dto';
 import { GetProductoDto } from '../../dto/get-producto.dto';
 import { UpdateProductoDto } from '../../dto/update-producto.dto';
+import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
 import { ProductoMapper } from '../../mappers/producto.mapper';
 import { LineaService } from 'src/modules/gestion-productos/linea/application/services/linea.service';
 import { MarcaService } from 'src/modules/gestion-productos/marca/application/services/marca.service';
@@ -55,10 +56,15 @@ export class ProductoService {
 
   private readonly ENTITY_NAME = 'Producto';
 
+  // Margen general 15%,
+  private readonly PORCENTAJE_MARGEN_DEFAULT = 15;
+
   async create(dto: CreateProductoDto) {
     this.logger.log(
       `Creando un nuevo ${this.ENTITY_NAME} con denominación: ${dto.denominacion} a: ${dto.denominacion}`,
     );
+    // Si no se proporciona porcentaje, se asigna el valor por defecto
+    dto.porcentaje = dto.porcentaje ?? this.PORCENTAJE_MARGEN_DEFAULT;
 
     // Orquestar todas las validaciones
     const { marca, linea, usuario } =
@@ -100,6 +106,20 @@ export class ProductoService {
       `${this.ENTITY_NAME}`,
       entity.denominacion,
       'editada',
+    );
+  }
+
+  async actualizarPreciosMasivo(dto: ActualizacionMasivaPrecioDto) {
+    if (dto.alcance === 'linea') {
+      await this.lineaService.findEntityById(dto.lineaId as number);
+    }
+
+    const cantidadActualizados =
+      await this.repository.actualizarPreciosMasivo(dto);
+
+    return MessageFrontUtils.createdItem(
+      `Se actualizaron los precios de ${cantidadActualizados} producto(s)`,
+      cantidadActualizados,
     );
   }
 

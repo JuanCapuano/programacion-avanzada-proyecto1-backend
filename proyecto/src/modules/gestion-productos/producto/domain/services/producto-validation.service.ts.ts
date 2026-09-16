@@ -7,6 +7,7 @@ import { Marca } from 'src/modules/gestion-productos/marca/domain/entities/marca
 export class ProductoValidationService {
   /**
    * Valida que las entidades relacionadas sean compatibles entre sí
+   * lo usamos para validar que la marca y la línea sean compatibles entre sí
    */
   validarEntidadesRelacionadas(
     marca: Marca,

@@ -48,20 +48,21 @@ export class ProductoMapper {
   }
 
 
-  static mapPrecios(
-    entity: Producto,
-    dto: UpdatePrecioDto,
-    usuario: Usuario,
-  ): void {
-    entity.costo = dto.costo;
-    entity.costoDolar = dto.costoDolar;
-    entity.cotizacionDolar = dto.cotizacionDolar;
-
-    entity.fechaCostoDolar = new Date();
-    entity.fechaCosto = new Date();
-
-    entity.usuarioUpdated = usuario;
-  }
+  
+  // static mapPrecios(
+  //   entity: Producto,
+  //   dto: UpdatePrecioDto,
+  //   usuario: Usuario,
+  // ): void {
+  //   entity.costo = dto.costo;
+  //   entity.costoDolar = dto.costoDolar;
+  //   entity.cotizacionDolar = dto.cotizacionDolar;
+  //
+  //   entity.fechaCostoDolar = new Date();
+  //   entity.fechaCosto = new Date();
+  //
+  //   entity.usuarioUpdated = usuario;
+  // }
 
 
   static toDto(entity: Producto): ProductoDto {

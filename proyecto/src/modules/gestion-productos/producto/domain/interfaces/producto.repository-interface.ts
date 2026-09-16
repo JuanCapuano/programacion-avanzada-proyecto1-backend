@@ -6,6 +6,7 @@ import { UpdateProductoDto } from '../../dto/update-producto.dto';
 import { IUnitOfWork } from 'src/modules/common/unit-of-work/iunit-of-work.';
 import { Usuario } from 'src/modules/gestion-usuario/usuario/domain/entities/usuario.entity';
 import { UpdatePrecioDto } from '../../dto/update-precio.dto';
+import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
 
 export interface IProductoRepository {
 
@@ -53,11 +54,15 @@ export interface IProductoRepository {
 
   updateEntity(uow: IUnitOfWork, data: Producto): Promise<Producto>;
 
-  actualizarPrecio(
-    id: number,
-    dto: UpdatePrecioDto,
-    usuario: Usuario,
-  ): Promise<void>;
+  // DEPRECADO: el cálculo de precio ahora vive en Producto.calcularPrecio()
+  // y se invoca desde el PersistenceAdapter antes de guardar.
+  // Se comenta (no se borra) para referencia, ver CLAUDE.md.
+  //
+  // actualizarPrecio(
+  //   id: number,
+  //   dto: UpdatePrecioDto,
+  //   usuario: Usuario,
+  // ): Promise<void>;
   remove(data: Producto, usuario: Usuario): Promise<Producto>;
 
   isCodigoProveedorDuplicado(
@@ -80,4 +85,6 @@ export interface IProductoRepository {
   existsProductosActivosByLinea(lineaId: number): Promise<boolean>;
 
   findByIds(ids: number[]): Promise<Producto[]>;
+
+  actualizarPreciosMasivo(dto: ActualizacionMasivaPrecioDto): Promise<number>;
 }

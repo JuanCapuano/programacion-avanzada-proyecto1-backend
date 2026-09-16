@@ -8,3 +8,4 @@ export interface IUnitOfWork {
   getManager(): EntityManager;
   getRepository<T extends ObjectLiteral>(repo: EntityTarget<T>): Repository<T>;
 }
+

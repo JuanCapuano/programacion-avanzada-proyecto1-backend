@@ -4,7 +4,8 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 @Injectable()
 export class ProductoIntrinsicValidationService {
   /**
-   * Valida todos los datos intrínsecos del producto
+   * Valida todos los datos intrínsecos del producto, los datos intrínsecos son aquellos que no dependen de otras entidades 
+   * lo usamos para validar los datos básicos del producto, como denominación, marca, línea, precios y alícuota IVA
    */
   validarDatosBasicos(datos: {
     denominacion: string;

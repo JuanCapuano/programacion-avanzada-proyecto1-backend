@@ -30,6 +30,7 @@ import { AuditoriaDto } from 'src/modules/gestion-sistema/auditoria/dto/auditori
 import { NormalizeDenominacionSearchPipe } from 'src/modules/common/pipes/normalize-denominations-search.pipe';
 import { DenominacionBusquedaDto } from 'src/modules/common/dto/denominacion-busqueda.dto';
 import { SearchProductoRapidoDto } from '../../dto/search-producto-rapido.dto';
+import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
 import { ProductoService } from '../services/producto.service';
 
 
@@ -51,6 +52,13 @@ export class ProductoController {
     return this.service.create(createDto);
   }
   
+  @Put('precios/actualizacion-masiva')
+  @Roles('Root', 'Administrador')
+  actualizarPreciosMasivo(@Body() dto: ActualizacionMasivaPrecioDto) {
+    this.logger.log('Actualizando precios de forma masiva...');
+    return this.service.actualizarPreciosMasivo(dto);
+  }
+
   @Get('find-all-for-marcas/select')
   @Roles(
     'Root',
