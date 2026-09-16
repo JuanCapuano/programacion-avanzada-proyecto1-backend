@@ -27,6 +27,9 @@ import { ProductoRelatedEntitiesValidator } from '../../infraestructure/validato
 import { ProductoUniquenessValidator } from '../../infraestructure/validators/producto-uniqueness.validator.ts';
 import { UsuarioValidator } from 'src/modules/common/utils/validation/usuario-validator';
 import { ProductoDeletePolicy } from '../policies/producto-delete.policy';
+import { GeneradorDenominacion } from '../../domain/services/generador-denominacion.service';
+import { OrigenDenominacion } from '../../domain/enums/origen-denominacion.enum';
+
 @Injectable()
 export class ProductoService {
   private readonly logger = new Logger(ProductoService.name);
@@ -51,6 +54,8 @@ export class ProductoService {
 
     private readonly productoDeletePolicy: ProductoDeletePolicy,
 
+    private readonly generadorDenominacion: GeneradorDenominacion,
+
   ) { }
 
   private readonly ENTITY_NAME = 'Producto';
@@ -64,22 +69,32 @@ export class ProductoService {
     const { marca, linea, usuario } =
       await this.validarYPrepararCreacion(dto);
 
-
-
-    const entity = await this.repository.create(
-      dto,
-      linea,
-      marca,
-
-      usuario,
-    );
-
-    return MessageFrontUtils.createSimple(
+     // Construir entidad base desde el DTO
+    const entity = new Producto();
+      Object.assign(entity, dto);
+      entity.linea = linea;
+      entity.marca = marca;
+      entity.usuarioCreated = usuario;
+ 
+  if (dto.denominacion) {
+    entity.renombrarManualmente(dto.denominacion); // Acá usaria la manual
+  } else {
+    entity.generarDenominacionAutomatica(this.generadorDenominacion, { // Aca la automatica
+      marca: marca.denominacion,
+      linea: linea.denominacion,
+    });
+  }
+   
+  const { denominacion } = await this.repository.save(entity);
+  
+  return MessageFrontUtils.createSimple(
       `${this.ENTITY_NAME}`,
-      entity.denominacion,
+      denominacion,
       'creada',
     );
   }
+
+
 
   async update(id: number, dto: UpdateProductoDto) {
     this.logger.log(`Actualizandox  ${this.ENTITY_NAME} con ID: ${id}`);
@@ -87,21 +102,38 @@ export class ProductoService {
     const { marca, linea, usuario } =
       await this.validarYPrepararActualizacion(id, dto);
 
-    const entity = await this.repository.update(
-      id,
-      dto,
-      linea,
-      marca,
 
-      usuario,
-    );
+     const entity = await this.repository.findOne(id);
+    if (!entity) {
+      throw new NotFoundException(`${this.ENTITY_NAME} con ID ${id} no encontrado.`);
+    }
+
+      // Aplicar cambios del DTO a la entidad
+    Object.assign(entity, dto);
+    entity.linea = linea;
+    entity.marca = marca;
+    entity.usuarioUpdated = usuario;
+
+    if (dto.denominacion !== undefined) {
+      entity.renombrarManualmente(dto.denominacion);
+    } else {
+      entity.sincronizarDenominacion(this.generadorDenominacion, {
+        marca: marca.denominacion,
+        linea: linea.denominacion,
+      });
+    }
+
+    const { denominacion } = await this.repository.save(entity);
 
     return MessageFrontUtils.createSimple(
       `${this.ENTITY_NAME}`,
-      entity.denominacion,
+      denominacion,
       'editada',
     );
   }
+
+
+
 
   async findByRapido(
     codigo: string,

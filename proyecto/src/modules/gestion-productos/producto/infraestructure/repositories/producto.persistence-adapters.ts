@@ -74,6 +74,16 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
       );
     }
   }
+
+  async save(entity: Producto): Promise<Producto> {
+    try {
+      return await this.repository.save(entity);
+    } catch (error) {
+      this.logger.error(`Error al guardar ${this.ENTITY_NAME}:`, error);
+      throw new DatabaseConnectionException('Error al guardar en la base de datos.');
+    }
+  }
+
   async findOne(id: number): Promise<Producto | null> {
     try {
       const entity = await this.repository
