@@ -28,6 +28,10 @@ import { ProductoUniquenessValidator } from '../../infraestructure/validators/pr
 import { UsuarioValidator } from 'src/modules/common/utils/validation/usuario-validator';
 import { ProductoDeletePolicy } from '../policies/producto-delete.policy';
 import { GeneradorDenominacion } from '../../domain/services/generador-denominacion.service';
+import { Presentacion } from '../../domain/value-objects/presentacion.vo';
+import { UnidadMedida } from '../../domain/enums/unidad-medida.enum';
+import { PrevisualizarDenominacionDto } from '../../dto/previsualizar-denominacion.dto';
+import { DenominacionPrevisualizadaDto } from '../../dto/denominacion-previsualizada.dto';
 
 @Injectable()
 export class ProductoService {
@@ -484,5 +488,44 @@ export class ProductoService {
       denominacion,
       'editada',
     );
+  }
+
+  /**
+   * US-10: devuelve la denominación que se generaría, sin guardar nada.
+   *
+   * Aplica las mismas validaciones que el alta (marca y línea existentes y
+   * utilizables) y usa el mismo GeneradorDenominacion, de modo que el nombre
+   * que ve el usuario es exactamente el que se va a guardar.
+   */
+  async previsualizarDenominacion(
+    dto: PrevisualizarDenominacionDto,
+  ): Promise<DenominacionPrevisualizadaDto> {
+    const { marca, linea } =
+      await this.relatedEntitiesValidator.validarYObtenerEntidadesRelacionadas(
+        dto.marcaId,
+        dto.lineaId,
+      );
+    this.validationService.validarEntidadesRelacionadas(marca, linea);
+
+    // Si llega alguna parte de la presentación, se construye el Value Object:
+    // si falta la otra parte, el propio VO lo rechaza con su mensaje.
+    const hayPresentacion =
+      dto.presentacionCantidad !== undefined ||
+      dto.presentacionUnidad !== undefined;
+
+    const presentacion = hayPresentacion
+      ? Presentacion.crear(
+          dto.presentacionCantidad as number,
+          dto.presentacionUnidad as UnidadMedida,
+        )
+      : null;
+
+    const denominacion = this.generadorDenominacion.generar({
+      marca: marca.denominacion,
+      linea: linea.denominacion,
+      presentacion,
+    });
+
+    return { denominacion };
   }
 }

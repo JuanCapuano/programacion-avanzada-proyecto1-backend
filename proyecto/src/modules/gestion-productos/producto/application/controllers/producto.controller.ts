@@ -34,6 +34,8 @@ import { DenominacionBusquedaDto } from 'src/modules/common/dto/denominacion-bus
 import { SearchProductoRapidoDto } from '../../dto/search-producto-rapido.dto';
 import { ProductoService } from '../services/producto.service';
 import { ProductoDomainExceptionFilter } from '../filters/producto-domain-exception.filter';
+import { PrevisualizarDenominacionDto } from '../../dto/previsualizar-denominacion.dto';
+import { DenominacionPrevisualizadaDto } from '../../dto/denominacion-previsualizada.dto';
 
 
 @ApiTags('Gestion Productos')
@@ -136,6 +138,22 @@ export class ProductoController {
       skip,
       take,
     );
+  }
+
+  /**
+   * US-10: devuelve la denominación automática que tendría un producto con
+   * esta marca, línea y presentación, sin guardar nada. El front la usa para
+   * mostrar el nombre mientras el usuario completa el formulario.
+   *
+   * Declarada antes de @Get(':id') para que nunca la capture esa ruta.
+   */
+  @Get('denominacion/previsualizar')
+  @Roles('Root', 'Administrador', 'Empleado', 'Repartidor', 'Repositor')
+  @ApiOkResponse({ type: DenominacionPrevisualizadaDto })
+  previsualizarDenominacion(
+    @Query() dto: PrevisualizarDenominacionDto,
+  ): Promise<DenominacionPrevisualizadaDto> {
+    return this.service.previsualizarDenominacion(dto);
   }
 
   @Get('marca/:id')

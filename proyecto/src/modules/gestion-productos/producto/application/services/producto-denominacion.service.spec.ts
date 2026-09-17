@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ProductoService } from './producto.service';
 import { ProductoModule } from '../../producto.module';
@@ -16,6 +16,8 @@ import { UsuarioService } from 'src/modules/gestion-usuario/usuario/application/
 import { GeneradorDenominacion } from '../../domain/services/generador-denominacion.service';
 import { Producto } from '../../domain/entities/producto.entity';
 import { OrigenDenominacion } from '../../domain/enums/origen-denominacion.enum';
+import { UnidadMedida } from '../../domain/enums/unidad-medida.enum';
+import { ProductoDomainException } from '../../domain/exceptions/producto-domain.exception';
 
 /**
  * Tests de la capa de aplicación del CR-005: verifican que ProductoService
@@ -263,6 +265,66 @@ describe('ProductoService — denominación automática (CR-005)', () => {
         ConflictException,
       );
       expect(repository.save).not.toHaveBeenCalled();
+    });
+  });
+  describe('previsualizar denominación (US-10)', () => {
+    it('sin presentación devuelve marca + línea', async () => {
+      const resultado = await service.previsualizarDenominacion({
+        marcaId: 1,
+        lineaId: 2,
+      });
+
+      expect(resultado).toEqual({ denominacion: 'coca-cola gaseosas' });
+    });
+
+    it('con presentación la incluye en el nombre', async () => {
+      const resultado = await service.previsualizarDenominacion({
+        marcaId: 1,
+        lineaId: 2,
+        presentacionCantidad: 1.5,
+        presentacionUnidad: UnidadMedida.LITRO,
+      });
+
+      expect(resultado).toEqual({ denominacion: 'coca-cola gaseosas 1.5 l' });
+    });
+
+    it('no guarda ni consulta unicidad: es una consulta pura', async () => {
+      await service.previsualizarDenominacion({ marcaId: 1, lineaId: 2 });
+
+      expect(repository.save).not.toHaveBeenCalled();
+      expect(unicidad.validarDenominacionUnica).not.toHaveBeenCalled();
+    });
+
+    it('devuelve el mismo nombre que después guarda el alta', async () => {
+      const { denominacion } = await service.previsualizarDenominacion({
+        marcaId: 1,
+        lineaId: 2,
+      });
+      await service.create({ ...altaBase } as any);
+
+      expect(productoGuardado().denominacion).toBe(denominacion);
+    });
+
+    it('presentación incompleta: el Value Object la rechaza', async () => {
+      await expect(
+        service.previsualizarDenominacion({
+          marcaId: 1,
+          lineaId: 2,
+          presentacionCantidad: 1.5,
+        }),
+      ).rejects.toThrow(
+        new ProductoDomainException(
+          'La unidad de medida de la presentación es obligatoria.',
+        ),
+      );
+    });
+
+    it('aplica las mismas reglas que el alta: una marca de sistema se rechaza', async () => {
+      marca = { id: 1, denominacion: 'Coca-Cola', sistema: 1 };
+
+      await expect(
+        service.previsualizarDenominacion({ marcaId: 1, lineaId: 2 }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

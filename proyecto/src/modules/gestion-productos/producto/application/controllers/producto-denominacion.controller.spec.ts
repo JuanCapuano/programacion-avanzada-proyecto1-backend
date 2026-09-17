@@ -22,6 +22,7 @@ describe('ProductoController — denominación (CR-005, HTTP)', () => {
     create: jest.Mock;
     update: jest.Mock;
     restaurarDenominacionAutomatica: jest.Mock;
+    previsualizarDenominacion: jest.Mock;
   };
 
   const altaBase = {
@@ -43,6 +44,9 @@ describe('ProductoController — denominación (CR-005, HTTP)', () => {
       create: jest.fn().mockResolvedValue(ok),
       update: jest.fn().mockResolvedValue(ok),
       restaurarDenominacionAutomatica: jest.fn().mockResolvedValue(ok),
+      previsualizarDenominacion: jest
+        .fn()
+        .mockResolvedValue({ denominacion: 'coca-cola gaseosas 1.5 l' }),
     };
 
     const module = await Test.createTestingModule({
@@ -160,6 +164,46 @@ describe('ProductoController — denominación (CR-005, HTTP)', () => {
         .expect(200);
 
       expect(service.update.mock.calls[0][1].denominacion).toBeUndefined();
+    });
+  });
+  describe('GET /producto/denominacion/previsualizar', () => {
+    const url = '/producto/denominacion/previsualizar';
+
+    it('convierte la query a números y devuelve la denominación', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`${url}?marcaId=1&lineaId=2&presentacionCantidad=1.5&presentacionUnidad=l`)
+        .expect(200);
+
+      expect(res.body).toEqual({ denominacion: 'coca-cola gaseosas 1.5 l' });
+      expect(service.previsualizarDenominacion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          marcaId: 1,
+          lineaId: 2,
+          presentacionCantidad: 1.5,
+          presentacionUnidad: 'l',
+        }),
+      );
+    });
+
+    it('la presentación es opcional', async () => {
+      await request(app.getHttpServer())
+        .get(`${url}?marcaId=1&lineaId=2`)
+        .expect(200);
+
+      const dto = service.previsualizarDenominacion.mock.calls[0][0];
+      expect(dto.presentacionCantidad).toBeUndefined();
+      expect(dto.presentacionUnidad).toBeUndefined();
+    });
+
+    it.each([
+      ['sin marcaId', '?lineaId=2'],
+      ['marcaId no numérico', '?marcaId=abc&lineaId=2'],
+      ['unidad inexistente', '?marcaId=1&lineaId=2&presentacionCantidad=1&presentacionUnidad=barriles'],
+      ['parámetro no permitido', '?marcaId=1&lineaId=2&guardar=true'],
+    ])('%s responde 400 y no llama al servicio', async (_, query) => {
+      await request(app.getHttpServer()).get(`${url}${query}`).expect(400);
+
+      expect(service.previsualizarDenominacion).not.toHaveBeenCalled();
     });
   });
 });

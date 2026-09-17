@@ -11,6 +11,7 @@ import {
 import { AlicuotaIva } from 'src/modules/organizacion/enums/alicuota-iva.enum';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ReferenciaDto } from 'src/modules/common/dto/referencia.dto';
+import { OrigenDenominacion } from '../domain/enums/origen-denominacion.enum';
 /*
 Se Utiliza cuando se necesita la entidad producto
 */
@@ -27,6 +28,16 @@ export class ProductoDto {
   })
   @IsString()
   denominacion: string;
+
+  @ApiProperty({
+    enum: OrigenDenominacion,
+    enumName: 'OrigenDenominacion',
+    example: OrigenDenominacion.AUTOMATICA,
+    description:
+      'AUTOMATICA: generada desde marca, línea y presentación. MANUAL: escrita por un usuario (CR-005).',
+  })
+  @IsEnum(OrigenDenominacion)
+  origenDenominacion: OrigenDenominacion;
 
   @ApiProperty()
   @IsString()
