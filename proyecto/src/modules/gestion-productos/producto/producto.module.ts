@@ -19,6 +19,7 @@ import { ProductoRelatedEntitiesValidator } from './infraestructure/validators/p
 import { ProductoValidationService } from './domain/services/producto-validation.service.ts';
 import { ProductoIntrinsicValidationService } from './domain/services/producto-intrinsic-validation.service.ts';
 import { ProductoDeletePolicy } from './application/policies/producto-delete.policy';
+import { GeneradorDenominacion } from './domain/services/generador-denominacion.service';
 
 
 @Module({
@@ -37,6 +38,7 @@ import { ProductoDeletePolicy } from './application/policies/producto-delete.pol
     ProductoService,
     ProductoIntrinsicValidationService,
     ProductoValidationService,
+    GeneradorDenominacion,
     ProductoRelatedEntitiesValidator,
     ProductoUniquenessValidator,
     ProductoDeletePolicy,

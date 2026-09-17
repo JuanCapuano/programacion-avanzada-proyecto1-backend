@@ -8,7 +8,8 @@ export class ProductoIntrinsicValidationService {
    * lo usamos para validar los datos básicos del producto, como denominación, marca, línea, precios y alícuota IVA
    */
   validarDatosBasicos(datos: {
-    denominacion: string;
+    /** Opcional (CR-005): si no viene, la genera y valida el dominio. */
+    denominacion?: string;
     marcaId: number;
     lineaId: number;
     alicuotaIva?: number;
@@ -16,7 +17,9 @@ export class ProductoIntrinsicValidationService {
     precioCliente?: number;
     precioOcasional?: number;
   }): void {
-    this.validarDenominacion(datos.denominacion);
+    if (datos.denominacion !== undefined) {
+      this.validarDenominacion(datos.denominacion);
+    }
     this.validarIds(datos.marcaId, datos.lineaId);
     this.validarPrecios(
       datos.precioMayorista,

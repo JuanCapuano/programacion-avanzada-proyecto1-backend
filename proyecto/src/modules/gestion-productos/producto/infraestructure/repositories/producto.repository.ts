@@ -70,6 +70,9 @@ export class ProductoRepository implements IProductoRepository {
     return this.persistenceService.updateEntity(uow, data);
   }
 
+  async save(entity: Producto): Promise<Producto> {
+    return this.persistenceService.save(entity);
+  }
 
   async findBy(
     denominacion: string,

@@ -10,6 +10,10 @@ import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-pre
 
 export interface IProductoRepository {
 
+  save (
+    entity: Producto
+  ): Promise<Producto>;
+  
   create(
     data: CreateProductoDto,
     linea: Linea,

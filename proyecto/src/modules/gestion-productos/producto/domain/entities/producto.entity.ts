@@ -18,6 +18,14 @@ import { MonetarioColumn } from 'src/modules/common/decorators/monetario-column.
 import { CantidadColumn } from 'src/modules/common/decorators/cantidad-column.decorator';
 import { PorcentajeColumn } from 'src/modules/common/decorators/porcentaje-column.decorator';
 import { Proveedor } from 'src/modules/organizacion/proveedor/domain/entities/proveedor.entity';
+import { OrigenDenominacion } from '../enums/origen-denominacion.enum';
+import { UnidadMedida } from '../enums/unidad-medida.enum';
+import { Presentacion } from '../value-objects/presentacion.vo';
+import {
+  ComponentesDenominacion,
+  GeneradorDenominacion,
+} from '../services/generador-denominacion.service';
+import { ProductoDomainException } from '../exceptions/producto-domain.exception';
 
 @Entity('producto')
 export class Producto {
@@ -28,6 +36,38 @@ export class Producto {
   @ApiProperty()
   @Column({ type: 'text' })
   denominacion: string;
+
+  // ========== DENOMINACIÓN (CR-005) ==========
+  /**
+   * Los productos anteriores al CR-005 quedan como MANUAL: sus nombres los
+   * escribió una persona y no deben regenerarse sin que alguien lo pida.
+   */
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: OrigenDenominacion.MANUAL,
+  })
+  origenDenominacion: OrigenDenominacion;
+
+  // ========== PRESENTACIÓN (CR-002) ==========
+  // Columnas de persistencia del Value Object Presentacion. No se acceden
+  // directamente: usar obtenerPresentacion() / asignarPresentacion().
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: true,
+    transformer: {
+      to: (value?: number | null): string | null =>
+        value === null || value === undefined ? null : value.toString(),
+      from: (value?: string | null): number | null =>
+        value === null || value === undefined ? null : Number(value),
+    },
+  })
+  presentacionCantidad?: number | null;
+
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  presentacionUnidad?: UnidadMedida | null;
 
   @Index()
   @Column({ type: 'varchar', length: 255, nullable: true })
@@ -207,5 +247,153 @@ export class Producto {
       porcentajeResultante,
       valido: precioResultante > 0,
     };
+  }
+
+  // =====================================================================
+  // Comportamiento de dominio
+  // =====================================================================
+
+  // ---------- Presentación (CR-002) ----------
+
+  /** Reconstruye el Value Object a partir de sus columnas de persistencia. */
+  obtenerPresentacion(): Presentacion | null {
+    if (
+      this.presentacionCantidad === null ||
+      this.presentacionCantidad === undefined ||
+      !this.presentacionUnidad
+    ) {
+      return null;
+    }
+    return Presentacion.crear(
+      this.presentacionCantidad,
+      this.presentacionUnidad,
+    );
+  }
+
+  asignarPresentacion(presentacion: Presentacion | null): void {
+    this.presentacionCantidad = presentacion?.cantidad ?? null;
+    this.presentacionUnidad = presentacion?.unidad ?? null;
+  }
+
+  // ---------- Denominación (CR-005) ----------
+
+  /**
+   * Cualquier valor distinto de AUTOMATICA se trata como manual: ante la
+   * duda, no se pisa un nombre escrito por una persona.
+   */
+  esDenominacionManual(): boolean {
+    return this.origenDenominacion !== OrigenDenominacion.AUTOMATICA;
+  }
+
+  /**
+   * US-10 / US-11: genera la denominación a partir de marca, línea y la
+   * presentación del propio producto, y deja el producto en modo automático.
+   * Se usa en el alta y en la acción "restaurar automática".
+   */
+  generarDenominacionAutomatica(
+    generador: GeneradorDenominacion,
+    componentes: Omit<ComponentesDenominacion, 'presentacion'>,
+  ): void {
+    this.denominacion = generador.generar({
+      ...componentes,
+      presentacion: this.obtenerPresentacion(),
+    });
+    this.origenDenominacion = OrigenDenominacion.AUTOMATICA;
+  }
+
+  /**
+   * US-11: al cambiar marca, línea o presentación, la denominación se
+   * regenera solo si es automática. Una denominación manual no se sobrescribe.
+   *
+   * @returns true si la denominación fue regenerada.
+   */
+  sincronizarDenominacion(
+    generador: GeneradorDenominacion,
+    componentes: Omit<ComponentesDenominacion, 'presentacion'>,
+  ): boolean {
+    if (this.esDenominacionManual()) {
+      return false;
+    }
+    this.generarDenominacionAutomatica(generador, componentes);
+    return true;
+  }
+
+  /**
+   * US-11: el usuario reemplaza la denominación generada por un texto propio.
+   * El producto pasa a modo manual. Si el texto es inválido, el producto
+   * queda exactamente como estaba.
+   */
+  renombrarManualmente(denominacion: string): void {
+    const normalizada = Producto.normalizarDenominacion(denominacion);
+
+    if (!normalizada) {
+      throw new ProductoDomainException(
+        'La denominación no puede estar vacía.',
+      );
+    }
+    if (normalizada.length > GeneradorDenominacion.LONGITUD_MAXIMA) {
+      throw new ProductoDomainException(
+        `La denominación no puede superar los ${GeneradorDenominacion.LONGITUD_MAXIMA} caracteres.`,
+      );
+    }
+
+    this.denominacion = normalizada;
+    this.origenDenominacion = OrigenDenominacion.MANUAL;
+  }
+
+  /**
+   * Alta (US-10 / US-11): decide cómo nace la denominación.
+   * - Sin texto del usuario  → se genera y el producto queda AUTOMATICA.
+   * - Con texto del usuario  → se respeta y el producto queda MANUAL.
+   *
+   * Solo `undefined` significa "no ingresó nada". Un texto vacío es un
+   * intento de nombre inválido y se rechaza.
+   */
+  inicializarDenominacion(
+    generador: GeneradorDenominacion,
+    componentes: Omit<ComponentesDenominacion, 'presentacion'>,
+    denominacionIngresada?: string,
+  ): void {
+    if (denominacionIngresada === undefined) {
+      this.generarDenominacionAutomatica(generador, componentes);
+      return;
+    }
+    this.renombrarManualmente(denominacionIngresada);
+  }
+
+  /**
+   * Edición (US-11): decide qué pasa con la denominación al guardar cambios.
+   * - Texto distinto del actual → el usuario la editó: pasa a MANUAL.
+   * - Sin texto, o igual al actual → no hubo edición del nombre: se
+   *   sincroniza (se regenera solo si es AUTOMATICA).
+   *
+   * Comparar contra el valor actual es necesario porque los formularios de
+   * edición reenvían todos los campos, incluido el nombre sin cambios.
+   *
+   * @returns true si la denominación cambió.
+   */
+  actualizarDenominacion(
+    generador: GeneradorDenominacion,
+    componentes: Omit<ComponentesDenominacion, 'presentacion'>,
+    denominacionIngresada?: string,
+  ): boolean {
+    const anterior = this.denominacion;
+
+    const fueEditada =
+      denominacionIngresada !== undefined &&
+      Producto.normalizarDenominacion(denominacionIngresada) !== anterior;
+
+    if (fueEditada) {
+      this.renombrarManualmente(denominacionIngresada);
+    } else {
+      this.sincronizarDenominacion(generador, componentes);
+    }
+
+    return this.denominacion !== anterior;
+  }
+
+  /** Misma normalización que el resto del catálogo: minúsculas y espacios simples. */
+  private static normalizarDenominacion(texto: string | null | undefined): string {
+    return (texto ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
   }
 }
