@@ -84,6 +84,12 @@ export class ProductoService {
     entity.marca = marca;
     entity.usuarioCreated = usuario;
 
+    // Dominio: la presentación se fija antes de generar la denominación
+    // automática, porque esta última la necesita (CR-005 lee vía obtenerPresentacion()).
+    entity.asignarPresentacion(
+      Presentacion.crear(dto.presentacionCantidad, dto.presentacionUnidad),
+    );
+
     // Dominio: decide si nace automática o manual (US-10 / US-11).
     entity.inicializarDenominacion(
       this.generadorDenominacion,

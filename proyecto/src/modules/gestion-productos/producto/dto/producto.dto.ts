@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsInt,
   IsEnum,
+  IsOptional,
   ValidateNested,
 } from 'class-validator';
 import { AlicuotaIva } from 'src/modules/organizacion/enums/alicuota-iva.enum';
@@ -58,7 +59,7 @@ export class ProductoDto {
   @ApiProperty()
   @IsNumber()
   costo: number;
-
+  
   @ApiProperty()
   @IsNumber()
   precio: number;
@@ -160,5 +161,14 @@ export class ProductoDto {
 
   @IsString()
   codigoReferencia?: string;
+
+  @ApiPropertyOptional({
+    example: '1.5 l',
+    description:
+      'Presentación del producto (cantidad + unidad), como texto listo para mostrar (CR-002). Ausente si el producto no tiene presentación cargada.',
+  })
+  @IsOptional()
+  @IsString()
+  presentacion?: string;
 
 }

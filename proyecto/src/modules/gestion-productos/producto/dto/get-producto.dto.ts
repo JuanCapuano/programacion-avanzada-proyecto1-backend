@@ -6,6 +6,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   Min,
 } from 'class-validator';
@@ -143,5 +144,14 @@ export class GetProductoDto {
   @IsString()
   codigoReferencia: string;
 
+  @ApiProperty({
+    example: '1.5 l',
+    description:
+      'Presentación del producto (cantidad + unidad), como texto listo para mostrar (CR-002). Ausente si el producto no tiene presentación cargada.',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  presentacion?: string;
 
 }

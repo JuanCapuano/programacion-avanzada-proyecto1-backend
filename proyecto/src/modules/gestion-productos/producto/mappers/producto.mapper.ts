@@ -52,6 +52,7 @@ export class ProductoMapper {
       cantidadPorPack: entity.cantidadPorPack ?? 0,
       sistema: entity.sistema,
       codigoReferencia: entity.codigoReferencia ?? '',
+      presentacion: entity.obtenerPresentacion()?.toString(),
 
     };
   }
@@ -108,9 +109,8 @@ export class ProductoMapper {
       cantidadPorPack: entity.cantidadPorPack ?? 0,
       sistema: entity.sistema,
       codigoReferencia: entity.codigoReferencia ?? '',
+      presentacion: entity.obtenerPresentacion()?.toString(),
 
-    
-      
     };
   }
 
