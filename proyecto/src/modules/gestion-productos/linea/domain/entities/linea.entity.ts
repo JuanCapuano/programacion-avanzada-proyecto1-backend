@@ -7,10 +7,12 @@ import {
   DeleteDateColumn,
   OneToMany,
   Index,
+  ManyToOne,
 } from 'typeorm';
 
 import { Producto } from '../../../producto/domain/entities/producto.entity';
 import { CantidadColumn } from 'src/modules/common/decorators/cantidad-column.decorator';
+import { SuperLinea } from 'src/modules/gestion-productos/super-linea/domain/entities/super-linea.entity';
 
 @Entity('linea')
 @Index(['denominacion', 'deletedAt'], { unique: true })
@@ -26,6 +28,9 @@ export class Linea {
 
   @OneToMany(() => Producto, (producto) => producto.linea)
   productos: Producto[];
+
+  @ManyToOne(() => SuperLinea, (superLinea) => superLinea.lineas)
+  superLinea: SuperLinea;
  
   @Column('boolean', { default: false })
   utilizaStockMinimo: boolean;
