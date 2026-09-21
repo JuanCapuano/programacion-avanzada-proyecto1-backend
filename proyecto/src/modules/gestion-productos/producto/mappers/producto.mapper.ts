@@ -56,6 +56,8 @@ export class ProductoMapper {
     entity.costo = dto.costo;
     entity.costoDolar = dto.costoDolar;
     entity.cotizacionDolar = dto.cotizacionDolar;
+    entity.precio = dto.precio;
+    entity.porcentaje = dto.porcentaje;
 
     entity.fechaCostoDolar = new Date();
     entity.fechaCosto = new Date();

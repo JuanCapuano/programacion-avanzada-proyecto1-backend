@@ -8,6 +8,7 @@ import {
   Logger,
   ParseIntPipe,
   Put,
+  Patch,
   Query,
   UsePipes,
   UseGuards,
@@ -15,6 +16,7 @@ import {
 
 import { CreateProductoDto } from '../../dto/create-producto.dto';
 import { UpdateProductoDto } from '../../dto/update-producto.dto';
+import { UpdatePrecioDto } from '../../dto/update-precio.dto';
 import { NormalizeDenominacionPipe } from 'src/modules/common/pipes/normalize-denominations.pipe';
 import { AuthGuard } from 'src/modules/gestion-usuario/auth/auth.guard';
 import { Roles } from 'src/modules/gestion-usuario/auth/roles.decorator';
@@ -31,6 +33,7 @@ import { NormalizeDenominacionSearchPipe } from 'src/modules/common/pipes/normal
 import { DenominacionBusquedaDto } from 'src/modules/common/dto/denominacion-busqueda.dto';
 import { SearchProductoRapidoDto } from '../../dto/search-producto-rapido.dto';
 import { ProductoService } from '../services/producto.service';
+import { GuardarCambioPreciosMasivoDto } from 'src/modules/gestion-productos/historial-precio-producto/dto/guardar-cambio-precios-masivo.dto';
 
 
 @ApiTags('Gestion Productos')
@@ -166,6 +169,23 @@ export class ProductoController {
     this.logger.log(`Actualizando  ${this.ENTITY_NAME} con ID: ${id}`);
     return this.service.update(id, updateDto);
   }
+@Patch('cambio-precios-masivo')
+@Roles('Root', 'Administrador', 'Empleado')
+async actualizarPreciosMasivo(@Body() dto: GuardarCambioPreciosMasivoDto) {
+  return this.service.actualizarPreciosMasivo(
+    dto.items.map((item) => ({
+      productoId: item.productoId,
+      dto: {
+        ...item,
+        motivo: dto.motivo,
+        usuarioId: dto.usuarioId,
+      },
+    })),
+    dto.motivo,
+    dto.usuarioId,
+  );
+
+}
 
   @Delete(':id')
   @Roles('Root', 'Administrador', 'Empleado')
@@ -177,6 +197,21 @@ export class ProductoController {
       `Eliminando ${this.ENTITY_NAME} con ID: ${id} por usuario: ${usuarioId}`,
     );
     return this.service.remove(id, usuarioId);
+  }
+
+  /**
+   * PATCH /producto/:id/precio
+   * Actualiza el precio de un producto individual y registra el cambio en el
+   * historial si el precio efectivamente cambió. Rechaza si precio resultante <= 0.
+   */
+  @Patch(':id/precio')
+  @Roles('Root', 'Administrador', 'Empleado')
+  actualizarPrecio(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePrecioDto,
+  ) {
+    this.logger.log(`Actualizando precio del ${this.ENTITY_NAME} con ID: ${id}`);
+    return this.service.actualizarPrecio(id, dto);
   }
 
 
