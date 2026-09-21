@@ -303,4 +303,16 @@ export class LineaPersistenceAdapter
       );
     }
   }
+
+  async existsLineasActivasBySuperLinea(superLineaId: number): Promise<boolean> {
+    const count = await this.repository
+      .createQueryBuilder('linea')
+      .where('linea.deletedAt IS NULL')
+      .andWhere('linea.superLinea_id = :superLineaId', { superLineaId })
+      .limit(1)
+      .getCount();
+
+    return count > 0;
+  }
+
 }
