@@ -10,8 +10,8 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
-    "ignoreDeprecations": "6.0",
-    "types":["jest","node"],
+    "ignoreDeprecations": "5.0",
+    "types":["jest","node", "multer"],
     "paths": {
       "src/*": ["src/*"]
     },

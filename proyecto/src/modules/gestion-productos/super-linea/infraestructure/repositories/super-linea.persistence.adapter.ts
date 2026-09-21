@@ -225,7 +225,7 @@ export class SuperLineaPersistenceAdapter
 
   //soft delete
   @Transactional()
-  async delete(id: number): Promise<SuperLinea> {
+  async delete(id: number, usuarioId: number): Promise<SuperLinea> {
     const repo = this.uow.getRepository(SuperLinea);
 
     const entity = await repo.findOne({ where: { id } });
@@ -235,6 +235,7 @@ export class SuperLineaPersistenceAdapter
     }
 
     entity.deletedAt = new Date();
+    entity.usuarioDeletedId = usuarioId;
     await repo.save(entity);
 
     return entity;
