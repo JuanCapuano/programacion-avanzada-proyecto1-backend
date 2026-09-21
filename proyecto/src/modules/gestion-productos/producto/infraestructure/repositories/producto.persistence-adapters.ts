@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transactional } from 'src/modules/common/decorators/transactional.decoratos';
 import { DatabaseConnectionException } from 'src/modules/common/exceptions/database-connection.exception';
@@ -13,6 +19,7 @@ import { IProductoRepository } from '../../domain/interfaces/producto.repository
 import { CreateProductoDto } from '../../dto/create-producto.dto';
 import { UpdatePrecioDto } from '../../dto/update-precio.dto';
 import { UpdateProductoDto } from '../../dto/update-producto.dto';
+import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
 import { ProductoMapper } from '../../mappers/producto.mapper';
 
 
@@ -57,6 +64,8 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
 
       this.logger.debug('Entity creada:', nuevaEntity);
 
+      nuevaEntity.calcularPrecio();
+
       const entityGuardada = await repo.save(nuevaEntity);
       this.logger.log(`Entity guardada con ID: ${entityGuardada.id}`);
 
@@ -74,6 +83,17 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
       );
     }
   }
+
+  async save(entity: Producto): Promise<Producto> {
+    try {
+      entity.calcularPrecio();
+      return await this.repository.save(entity);
+    } catch (error) {
+      this.logger.error(`Error al guardar ${this.ENTITY_NAME}:`, error);
+      throw new DatabaseConnectionException('Error al guardar en la base de datos.');
+    }
+  }
+
   async findOne(id: number): Promise<Producto | null> {
     try {
       const entity = await this.repository
@@ -180,7 +200,10 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
         marca,
       });
 
-      entity.usuarioUpdated = usuario; 
+      entity.usuarioUpdated = usuario;
+
+      entity.calcularPrecio();
+
       const entityActualizada = await repo.save(entity);
 
 
@@ -369,19 +392,67 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
     return existe; // true si existe otro con el mismo código
   }
 
-  @Transactional()
-  async actualizarPrecio(id: number, dto: UpdatePrecioDto, usuario: Usuario) {
-    const repo = this.uow.getRepository(Producto);
-    const entity = await repo.findOne({ where: { id } });
+  // DEPRECADO: el cálculo de precio ahora vive en Producto.calcularPrecio()
+  // y se invoca desde el PersistenceAdapter antes de guardar.
+  // Se comenta (no se borra) para referencia, ver CLAUDE.md.
+  //
+  // @Transactional()
+  // async actualizarPrecio(id: number, dto: UpdatePrecioDto, usuario: Usuario) {
+  //   const repo = this.uow.getRepository(Producto);
+  //   const entity = await repo.findOne({ where: { id } });
+  //
+  //   if (!entity) {
+  //     throw new NotFoundException('Producto no encontrado');
+  //   }
+  //
+  //   ProductoMapper.mapPrecios(entity, dto, usuario);
+  //
+  //   await repo.save(entity);
+  //
+  // }
 
-    if (!entity) {
-      throw new NotFoundException('Producto no encontrado');
+  @Transactional()
+  async actualizarPreciosMasivo(
+    dto: ActualizacionMasivaPrecioDto,
+  ): Promise<number> {
+    const repo = this.uow.getRepository(Producto);
+
+    const query = repo
+      .createQueryBuilder('producto')
+      .where('producto.deletedAt IS NULL');
+
+    if (dto.alcance === 'linea') {
+      query.andWhere('producto.linea_id = :lineaId', {
+        lineaId: dto.lineaId,
+      });
     }
 
-    ProductoMapper.mapPrecios(entity, dto, usuario);
+    const productos = await query.getMany();
+    //el map recorre todos los productos y calcula el precio resultante y el porcentaje resultante para cada producto
+    //  usando el método simularAjustePrecio de la entidad Producto. El resultado es un array de objetos con las propiedades precioResultante, porcentajeResultante y valido.
+    const resultados = productos.map((producto) =>
+      producto.simularAjustePrecio(dto.tipoAjuste, dto.valor),
+    );
+    //busca el primer resultado que no sea válido y devuelve su índice. Si todos los resultados son válidos, devuelve -1.
+    const indiceInvalido = resultados.findIndex(
+      (resultado) => !resultado.valido,
+    );
+    //si hay algún resultado inválido, lanza una excepción BadRequestException con un mensaje que indica cuál producto tiene un precio resultante inválido 
+    if (indiceInvalido !== -1) {
+      throw new BadRequestException(
+        `La actualización dejaría el precio del producto "${productos[indiceInvalido].denominacion}" en un valor inválido (${resultados[indiceInvalido].precioResultante}). Se rechaza la operación completa y ningún producto fue modificado.`,
+      );
+    }
+    //el forEach se hace para actualizar los precios y porcentajes de los productos con los resultados calculados previamente, ya viendo que todos son válidos. 
+    productos.forEach((producto, index) => {
+      producto.precio = resultados[index].precioResultante;
+      producto.porcentaje = resultados[index].porcentajeResultante;
+    });
 
-    await repo.save(entity);
 
+ //guarda todos los productos actualizados en la base de datos usando el repositorio y devuelve la cantidad de productos modificados.
+    await repo.save(productos);
+    return productos.length;
   }
 
   async findByDenominacion(denominacion: string): Promise<Producto | null> {

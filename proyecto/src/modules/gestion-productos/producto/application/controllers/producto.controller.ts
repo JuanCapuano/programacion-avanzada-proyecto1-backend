@@ -7,9 +7,11 @@ import {
   Delete,
   Logger,
   ParseIntPipe,
+  Patch,
   Put,
   Query,
   UsePipes,
+  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 
@@ -30,12 +32,17 @@ import { AuditoriaDto } from 'src/modules/gestion-sistema/auditoria/dto/auditori
 import { NormalizeDenominacionSearchPipe } from 'src/modules/common/pipes/normalize-denominations-search.pipe';
 import { DenominacionBusquedaDto } from 'src/modules/common/dto/denominacion-busqueda.dto';
 import { SearchProductoRapidoDto } from '../../dto/search-producto-rapido.dto';
+import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
 import { ProductoService } from '../services/producto.service';
+import { ProductoDomainExceptionFilter } from '../filters/producto-domain-exception.filter';
+import { PrevisualizarDenominacionDto } from '../../dto/previsualizar-denominacion.dto';
+import { DenominacionPrevisualizadaDto } from '../../dto/denominacion-previsualizada.dto';
 
 
 @ApiTags('Gestion Productos')
 @Controller('producto')
 @UseGuards(AuthGuard)
+@UseFilters(ProductoDomainExceptionFilter)
 export class ProductoController {
   private readonly logger = new Logger(ProductoController.name);
   constructor(private readonly service: ProductoService) {}
@@ -51,6 +58,13 @@ export class ProductoController {
     return this.service.create(createDto);
   }
   
+  @Put('precios/actualizacion-masiva')
+  @Roles('Root', 'Administrador')
+  actualizarPreciosMasivo(@Body() dto: ActualizacionMasivaPrecioDto) {
+    this.logger.log('Actualizando precios de forma masiva...');
+    return this.service.actualizarPreciosMasivo(dto);
+  }
+
   @Get('find-all-for-marcas/select')
   @Roles(
     'Root',
@@ -134,6 +148,22 @@ export class ProductoController {
     );
   }
 
+  /**
+   * US-10: devuelve la denominación automática que tendría un producto con
+   * esta marca, línea y presentación, sin guardar nada. El front la usa para
+   * mostrar el nombre mientras el usuario completa el formulario.
+   *
+   * Declarada antes de @Get(':id') para que nunca la capture esa ruta.
+   */
+  @Get('denominacion/previsualizar')
+  @Roles('Root', 'Administrador', 'Empleado', 'Repartidor', 'Repositor')
+  @ApiOkResponse({ type: DenominacionPrevisualizadaDto })
+  previsualizarDenominacion(
+    @Query() dto: PrevisualizarDenominacionDto,
+  ): Promise<DenominacionPrevisualizadaDto> {
+    return this.service.previsualizarDenominacion(dto);
+  }
+
   @Get('marca/:id')
   @Roles('Root', 'Administrador', 'Empleado')
   async getMarcaDelProducto(@Param('id', ParseIntPipe) id: number) {
@@ -165,6 +195,22 @@ export class ProductoController {
   ) {
     this.logger.log(`Actualizando  ${this.ENTITY_NAME} con ID: ${id}`);
     return this.service.update(id, updateDto);
+  }
+
+  /**
+   * US-11: descarta la denominación manual y vuelve a generarla a partir de
+   * marca, línea y presentación. El producto queda en modo automático.
+   */
+  @Patch(':id/restaurar-denominacion')
+  @Roles('Root', 'Administrador', 'Empleado')
+  restaurarDenominacion(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('usuarioId', ParseIntPipe) usuarioId: number,
+  ) {
+    this.logger.log(
+      `Restaurando denominación automática de ${this.ENTITY_NAME} con ID: ${id}`,
+    );
+    return this.service.restaurarDenominacionAutomatica(id, usuarioId);
   }
 
   @Delete(':id')

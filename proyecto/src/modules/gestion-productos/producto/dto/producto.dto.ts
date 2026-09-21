@@ -6,11 +6,13 @@ import {
   IsNumber,
   IsInt,
   IsEnum,
+  IsOptional,
   ValidateNested,
 } from 'class-validator';
 import { AlicuotaIva } from 'src/modules/organizacion/enums/alicuota-iva.enum';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ReferenciaDto } from 'src/modules/common/dto/referencia.dto';
+import { OrigenDenominacion } from '../domain/enums/origen-denominacion.enum';
 /*
 Se Utiliza cuando se necesita la entidad producto
 */
@@ -27,6 +29,16 @@ export class ProductoDto {
   })
   @IsString()
   denominacion: string;
+
+  @ApiProperty({
+    enum: OrigenDenominacion,
+    enumName: 'OrigenDenominacion',
+    example: OrigenDenominacion.AUTOMATICA,
+    description:
+      'AUTOMATICA: generada desde marca, línea y presentación. MANUAL: escrita por un usuario (CR-005).',
+  })
+  @IsEnum(OrigenDenominacion)
+  origenDenominacion: OrigenDenominacion;
 
   @ApiProperty()
   @IsString()
@@ -47,7 +59,7 @@ export class ProductoDto {
   @ApiProperty()
   @IsNumber()
   costo: number;
-
+  
   @ApiProperty()
   @IsNumber()
   precio: number;
@@ -149,5 +161,22 @@ export class ProductoDto {
 
   @IsString()
   codigoReferencia?: string;
+
+  @ApiPropertyOptional({
+    example: '1.5 l',
+    description:
+      'Presentación del producto (cantidad + unidad), como texto listo para mostrar (CR-002). Ausente si el producto no tiene presentación cargada.',
+  })
+  @IsOptional()
+  @IsString()
+  presentacion?: string;
+
+  @IsOptional()
+  @IsNumber()
+  presentacionCantidad?: number | null;
+
+  @IsOptional()
+  @IsString()
+  presentacionUnidad?: string | null;
 
 }

@@ -9,22 +9,31 @@ import {
   IsNumber,
   IsInt,
   IsEnum,
+  IsPositive,
 } from 'class-validator';
 import { AlicuotaIva } from 'src/modules/organizacion/enums/alicuota-iva.enum';
+import { UnidadMedida } from '../domain/enums/unidad-medida.enum';
+import {
+  DENOMINACION_LONGITUD_MAXIMA,
+  DENOMINACION_PATRON,
+  transformarDenominacionAlta,
+} from './denominacion.validacion';
 
 export class CreateProductoDto {
-  @Transform(({ value }) => value.trim().toLowerCase())
-  @IsString({ message: 'La denominación debe ser una cadena de texto.' }) // Valida que sea string
-  @IsNotEmpty({ message: 'La denominación no puede estar vacía.' }) // Valida que no esté vacía
-  @MaxLength(255, { message: 'La denominación no puede estar vacía.' })
-  /*  @Matches(/^[A-Za-z0-9 áéíóúÁÉÍÓÚñÑ.\-/]+$/, {
-    message:
-      'La denominación solo puede contener letras, números, espacios, puntos, guiones y barras.',
-  }) */
-  @Matches(/^[\w áéíóúÁÉÍÓÚñÑ.\-/%]+$/, {
-    message: 'La denominación contiene caracteres inválidos ',
+  /**
+   * Opcional (CR-005): si no viene, o viene vacía, el dominio genera la
+   * denominación automática. Si el usuario la escribe, queda como manual.
+   */
+  @Transform(transformarDenominacionAlta)
+  @IsOptional()
+  @IsString({ message: 'La denominación debe ser una cadena de texto.' })
+  @MaxLength(DENOMINACION_LONGITUD_MAXIMA, {
+    message: `La denominación no puede superar los ${DENOMINACION_LONGITUD_MAXIMA} caracteres.`,
   })
-  denominacion: string;
+  @Matches(DENOMINACION_PATRON, {
+    message: 'La denominación contiene caracteres inválidos.',
+  })
+  denominacion?: string;
 
   @IsOptional()
   @IsString()
@@ -102,9 +111,6 @@ export class CreateProductoDto {
   @IsNumber()
   porcentaje?: number;
 
-  @IsOptional()
-  @IsNumber()
-  precio: number;
 
   createdAt?: Date;
 
@@ -125,5 +131,17 @@ export class CreateProductoDto {
   @IsInt({ message: 'El usuarioCreatedId debe ser un número entero.' })
   usuarioCreatedId: number;
 
+  /**
+   * Presentación (CR-002): cantidad y unidad son obligatorias, no hay
+   * presentación "a medias".
+   */
+  @IsNumber({}, { message: 'La cantidad de la presentación debe ser un número.' })
+  @IsPositive({ message: 'La cantidad de la presentación debe ser mayor a 0.' })
+  presentacionCantidad: number;
+
+  @IsEnum(UnidadMedida, {
+    message: `La unidad de la presentación debe ser una de: ${Object.values(UnidadMedida).join(', ')}.`,
+  })
+  presentacionUnidad: UnidadMedida;
 
 }

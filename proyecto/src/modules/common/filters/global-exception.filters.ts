@@ -84,7 +84,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
-      message: exception?.message || 'Internal Server Error',
+      message: exception?.response?.message || 'Internal Server Error',
       ...(process.env.NODE_ENV === 'development' && { 
         stack: exception?.stack,
         details: exception?.response 
