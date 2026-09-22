@@ -218,13 +218,23 @@ export class Producto {
    * precio = costo + (costo * porcentaje / 100).
    * Deja el resultado asignado en `this.precio` y lo devuelve.
    */
-  calcularPrecio(): number {
-    const costo = this.costo ?? 0;
-    const porcentaje = this.porcentaje ?? 0;
 
-    this.precio = costo + (costo * porcentaje) / 100;
-    return this.precio;
+
+  calcularPrecio(): number {
+  const costo = this.costo ?? 0;
+  const porcentaje = this.porcentaje ?? 0;
+
+  const precioCalculado = costo + (costo * porcentaje) / 100;
+
+  if (precioCalculado <= 0) {
+    throw new ProductoDomainException(
+      `El precio calculado (${precioCalculado}) debe ser mayor a 0. Revisá el costo y el porcentaje cargados.`,
+    );
   }
+
+  this.precio = precioCalculado;
+  return this.precio;
+}
 
   /**
    * Simula el resultado de aplicar un ajuste masivo de precio (CR-006), sin
@@ -247,8 +257,7 @@ export class Producto {
       porcentajeResultante,
       valido:
       precioResultante > 0 &&
-      porcentajeResultante >= -99.99 &&
-      porcentajeResultante <= 999.99,
+      porcentajeResultante >= -99.99
     };
   }
 
