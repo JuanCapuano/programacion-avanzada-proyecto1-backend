@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   forwardRef,
   Inject,
   Injectable,
@@ -20,14 +21,15 @@ import { GetProductoDto } from '../../dto/get-producto.dto';
 import { UpdateProductoDto } from '../../dto/update-producto.dto';
 import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
 import { PreviewActualizacionMasivaPrecioDto } from '../../dto/preview-actualizacion-masiva-precio.dto';
+import { UpdatePrecioDto } from '../../dto/update-precio.dto';
 import { ProductoMapper } from '../../mappers/producto.mapper';
-import { LineaService } from 'src/modules/gestion-productos/linea/application/services/linea.service';
-import { MarcaService } from 'src/modules/gestion-productos/marca/application/services/marca.service';
+import { LineaService } from '../../../../../modules/gestion-productos/linea/application/services/linea.service';
+import { MarcaService } from '../../../../../modules/gestion-productos/marca/application/services/marca.service';
 import { ProductoIntrinsicValidationService } from '../../domain/services/producto-intrinsic-validation.service.ts';
 import { ProductoValidationService } from '../../domain/services/producto-validation.service.ts';
 import { ProductoRelatedEntitiesValidator } from '../../infraestructure/validators/producto-related-entities.validator.ts';
 import { ProductoUniquenessValidator } from '../../infraestructure/validators/producto-uniqueness.validator.ts';
-import { UsuarioValidator } from 'src/modules/common/utils/validation/usuario-validator';
+import { UsuarioValidator } from '../../../../../modules/common/utils/validation/usuario-validator';
 import { ProductoDeletePolicy } from '../policies/producto-delete.policy';
 import { GeneradorDenominacion } from '../../domain/services/generador-denominacion.service';
 import { Presentacion } from '../../domain/value-objects/presentacion.vo';
@@ -35,6 +37,9 @@ import { UnidadMedida } from '../../domain/enums/unidad-medida.enum';
 import { PrevisualizarDenominacionDto } from '../../dto/previsualizar-denominacion.dto';
 import { DenominacionPrevisualizadaDto } from '../../dto/denominacion-previsualizada.dto';
 
+import { HistorialPrecioService } from '../../../../../modules/gestion-productos/historial-precio-producto/application/services/historial-precio.service';
+import { ProductoPersistenceAdapter } from '../../infraestructure/repositories/producto.persistence-adapters';
+import { Usuario } from '../../../../../modules/gestion-usuario/usuario/domain/entities/usuario.entity';
 @Injectable()
 export class ProductoService {
   private readonly logger = new Logger(ProductoService.name);
@@ -60,6 +65,12 @@ export class ProductoService {
     private readonly productoDeletePolicy: ProductoDeletePolicy,
 
     private readonly generadorDenominacion: GeneradorDenominacion,
+
+    // Historial de precios
+    private readonly historialPrecioService: HistorialPrecioService,
+
+    // Adapter directo para operaciones internas
+    private readonly persistenceAdapter: ProductoPersistenceAdapter,
 
   ) { }
 
@@ -354,6 +365,14 @@ export class ProductoService {
     return this.repository.findByIds(ids);
   }
 
+  /**
+   * Guarda directamente los campos de precio en un producto ya cargado.
+   * Usado internamente por el cambio masivo para evitar recargar la entidad.
+   */
+  async actualizarPrecioDirecto(id: number, dto: UpdatePrecioDto, usuario: Usuario): Promise<void> {
+    await this.persistenceAdapter.actualizarPrecio(id, dto, usuario);
+  }
+
   async incrementarStock(
     uow: IUnitOfWork,
     productoId: number,
@@ -397,6 +416,118 @@ export class ProductoService {
     );
 
     return nuevoStock;
+  }
+
+  /**
+   * Actualiza el precio de un producto individual.
+   * Valida que el precio resultante sea > 0 ANTES de persistir cualquier cambio.
+   * Registra en el historial SOLO si el precio cambió efectivamente.
+   */
+  async actualizarPrecio(id: number, dto: UpdatePrecioDto) {
+    this.logger.log(`[DEBUG] actualizarPrecio llamado — id=${id} dto=${JSON.stringify(dto)}`); 
+    // Validar precio > 0 antes de cualquier operación de BD
+    if (dto.precio <= 0) {
+      this.logger.warn(`[BACK · ProductoService] ❌ precio <= 0, rechazando`);
+      throw new BadRequestException(
+        `El precio (${dto.precio}) debe ser mayor a 0. El cambio fue rechazado.`,
+      );
+    }
+
+    const producto = await this.findEntityById(id);
+    this.logger.log(`[BACK · ProductoService] precio actual en BD: ${producto.precio}`);
+    const usuario = await this.usuarioValidator.validarUsuarioExiste(dto.usuarioId);
+
+    // Capturar valores anteriores ANTES de modificar la entidad
+    const precioAnterior = dto.precioAnterior ?? producto.precio ?? 0;
+
+    // Actualizar la entidad en la base de datos
+    await this.repository.actualizarPrecio(id, dto, usuario);
+
+    // Registrar en historial si el precio cambió
+    await this.historialPrecioService.registrarSiCambio(
+      {
+        productoId: id,
+        precioAnterior,
+        costoAnterior: producto.costo ?? 0,
+        costoDolarAnterior: producto.costoDolar ?? 0,
+        cotizacionDolarAnterior: producto.cotizacionDolar ?? 0,
+        porcentajeAnterior: producto.porcentaje ?? 0,
+        precioNuevo: dto.precio,
+        costoNuevo: dto.costo,
+        costoDolarNuevo: dto.costoDolar,
+        cotizacionDolarNuevo: dto.cotizacionDolar,
+        porcentajeNuevo: dto.porcentaje,
+        motivo: dto.motivo,
+        usuarioId: dto.usuarioId,
+      },
+      producto,
+      usuario,
+    );
+
+    return MessageFrontUtils.create(
+      `Precio del producto ${producto.denominacion} actualizado con éxito`,
+    );
+  }
+
+  /**
+   * Actualiza el precio de múltiples productos en una operación masiva.
+   * Registra en el historial cada producto cuyo precio efectivamente cambió.
+   *
+   * @param items  Lista de { productoId, dto } con los cambios a aplicar
+   * @param motivo Motivo general del cambio masivo (ej: "Ajuste por inflación")
+   */
+  async actualizarPreciosMasivo(
+    items: Array<{ productoId: number; dto: UpdatePrecioDto }>,
+    motivo: string,
+    usuarioId: number,
+  ) {
+    this.logger.log(
+      `Actualización masiva de precios: ${items.length} productos. Motivo: "${motivo}"`,
+    );
+
+    const usuario = await this.usuarioValidator.validarUsuarioExiste(usuarioId);
+
+    const resultados = await Promise.all(
+      items.map(async ({ productoId, dto }) => {
+        const producto = await this.findEntityById(productoId);
+
+        const precioAnterior = producto.precio ?? 0;
+
+        await this.repository.actualizarPrecio(productoId, dto, usuario);
+
+        const registrado = await this.historialPrecioService.registrarSiCambio(
+          {
+            productoId,
+            precioAnterior,
+            costoAnterior: producto.costo ?? 0,
+            costoDolarAnterior: producto.costoDolar ?? 0,
+            cotizacionDolarAnterior: producto.cotizacionDolar ?? 0,
+            porcentajeAnterior: producto.porcentaje ?? 0,
+            precioNuevo: dto.precio,
+            costoNuevo: dto.costo,
+            costoDolarNuevo: dto.costoDolar,
+            cotizacionDolarNuevo: dto.cotizacionDolar,
+            porcentajeNuevo: dto.porcentaje,
+            motivo,
+            usuarioId,
+          },
+          producto,
+          usuario,
+        );
+
+        return { productoId, denominacion: producto.denominacion, registrado };
+      }),
+    );
+
+    const conCambio = resultados.filter((r) => r.registrado).length;
+    this.logger.log(
+      `Actualización masiva completada: ${conCambio}/${items.length} productos con cambio de precio registrado.`,
+    );
+
+    return {
+      mensaje: `Actualización masiva completada. ${conCambio} producto(s) con cambio de precio registrado.`,
+      detalle: resultados,
+    };
   }
 
   /**

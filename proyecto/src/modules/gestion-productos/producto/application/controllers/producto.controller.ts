@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Put,
+  Patch,
   Query,
   UsePipes,
   UseFilters,
@@ -17,6 +18,7 @@ import {
 
 import { CreateProductoDto } from '../../dto/create-producto.dto';
 import { UpdateProductoDto } from '../../dto/update-producto.dto';
+import { UpdatePrecioDto } from '../../dto/update-precio.dto';
 import { NormalizeDenominacionPipe } from 'src/modules/common/pipes/normalize-denominations.pipe';
 import { AuthGuard } from 'src/modules/gestion-usuario/auth/auth.guard';
 import { Roles } from 'src/modules/gestion-usuario/auth/roles.decorator';
@@ -38,6 +40,7 @@ import { ProductoService } from '../services/producto.service';
 import { ProductoDomainExceptionFilter } from '../filters/producto-domain-exception.filter';
 import { PrevisualizarDenominacionDto } from '../../dto/previsualizar-denominacion.dto';
 import { DenominacionPrevisualizadaDto } from '../../dto/denominacion-previsualizada.dto';
+import { GuardarCambioPreciosMasivoDto } from 'src/modules/gestion-productos/historial-precio-producto/dto/guardar-cambio-precios-masivo.dto';
 
 
 @ApiTags('Gestion Productos')
@@ -212,6 +215,23 @@ export class ProductoController {
     this.logger.log(`Actualizando  ${this.ENTITY_NAME} con ID: ${id}`);
     return this.service.update(id, updateDto);
   }
+@Patch('cambio-precios-masivo')
+@Roles('Root', 'Administrador', 'Empleado')
+async actualizarPreciosMasivo(@Body() dto: GuardarCambioPreciosMasivoDto) {
+  return this.service.actualizarPreciosMasivo(
+    dto.items.map((item) => ({
+      productoId: item.productoId,
+      dto: {
+        ...item,
+        motivo: dto.motivo,
+        usuarioId: dto.usuarioId,
+      },
+    })),
+    dto.motivo,
+    dto.usuarioId,
+  );
+
+}
 
   /**
    * US-11: descarta la denominación manual y vuelve a generarla a partir de
@@ -239,6 +259,21 @@ export class ProductoController {
       `Eliminando ${this.ENTITY_NAME} con ID: ${id} por usuario: ${usuarioId}`,
     );
     return this.service.remove(id, usuarioId);
+  }
+
+  /**
+   * PATCH /producto/:id/precio
+   * Actualiza el precio de un producto individual y registra el cambio en el
+   * historial si el precio efectivamente cambió. Rechaza si precio resultante <= 0.
+   */
+  @Patch(':id/precio')
+  @Roles('Root', 'Administrador', 'Empleado')
+  actualizarPrecio(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePrecioDto,
+  ) {
+    this.logger.log(`Actualizando precio del ${this.ENTITY_NAME} con ID: ${id}`);
+    return this.service.actualizarPrecio(id, dto);
   }
 
 
