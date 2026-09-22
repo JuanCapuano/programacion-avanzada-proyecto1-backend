@@ -2,11 +2,14 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsIn,
   IsInt,
+  IsISBN,
   IsNotEmpty,
   IsNumber,
   NotEquals,
   ValidateIf,
+  Min,
 } from 'class-validator';
+import { dot } from 'node:test/reporters';
 
 export class ActualizacionMasivaPrecioDto {
   @ApiProperty({
@@ -26,6 +29,8 @@ export class ActualizacionMasivaPrecioDto {
   })
   @IsNumber()
   @NotEquals(0, { message: 'El valor del ajuste no puede ser 0' })
+  @ValidateIf((dto) => dto.tipoAjuste === 'porcentaje')
+  @Min(-99.99, { message: 'Un porcentaje ≤ -100% dejaría cualquier precio en 0 o negativo' })
   valor: number;
 
   @ApiProperty({
@@ -42,12 +47,15 @@ export class ActualizacionMasivaPrecioDto {
     example: 3,
     description: 'ID de la línea a actualizar. Requerido solo si alcance = "linea"',
   })
-  @ValidateIf((dto) => dto.alcance === 'linea')
+  @ValidateIf((dto) => dto.alcance === 'linea' || dto.lineaId !== undefined)
   @IsNotEmpty({ message: 'lineaId es obligatorio cuando alcance es "linea"' })
   @IsInt()
+  @Min(1,{message:"lineaId deber ser mayor a 0"})
   lineaId?: number;
 
-  @ApiProperty({ example: 3, description: 'ID del usuario que realiza la actualización' })
-  @IsNumber()
+  @IsInt({ message: 'usuarioId debe ser un número entero' })
+  @Min(1, { message: 'usuarioId debe ser mayor a 0' })
   usuarioId: number;
 }
+
+

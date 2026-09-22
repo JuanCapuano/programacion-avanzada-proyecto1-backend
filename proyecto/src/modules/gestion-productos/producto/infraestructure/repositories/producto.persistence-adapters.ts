@@ -20,6 +20,7 @@ import { CreateProductoDto } from '../../dto/create-producto.dto';
 import { UpdatePrecioDto } from '../../dto/update-precio.dto';
 import { UpdateProductoDto } from '../../dto/update-producto.dto';
 import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
+import { PreviewActualizacionMasivaPrecioDto } from '../../dto/preview-actualizacion-masiva-precio.dto';
 import { ProductoMapper } from '../../mappers/producto.mapper';
 
 
@@ -37,8 +38,14 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
   ) { }
 
 
-  @Transactional()
-  async create(
+  // DEPRECADO: el alta ya no pasa por acá. ProductoService.create() arma la
+  // entidad (presentación, denominación, marca, línea, usuario y precio) y la
+  // persiste con save(). Este método construía la entidad desde el DTO y se
+  // salteaba la lógica de dominio. Se comenta (no se borra) para referencia.
+  //
+  // @Transactional()
+  // async create(
+    /*
     data: CreateProductoDto,
     linea: Linea,
     marca: Marca,
@@ -83,16 +90,18 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
       );
     }
   }
+  */
 
+  // El precio lo calcula ProductoService (entity.calcularPrecio()) antes de
+  // llamar a save(); acá solo se persiste.
   async save(entity: Producto): Promise<Producto> {
     try {
-      entity.calcularPrecio();
       return await this.repository.save(entity);
     } catch (error) {
       this.logger.error(`Error al guardar ${this.ENTITY_NAME}:`, error);
       throw new DatabaseConnectionException('Error al guardar en la base de datos.');
     }
-  }
+  } 
 
   async findOne(id: number): Promise<Producto | null> {
     try {
@@ -174,8 +183,13 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
     }
   }
 
-  @Transactional()
-  async update(
+  // DEPRECADO: la edición ya no pasa por acá. ProductoService.update() carga la
+  // entidad, aplica los cambios (incluida la denominación por dominio) y la
+  // persiste con save(). Se comenta (no se borra) para referencia.
+  //
+  // @Transactional()
+  // async update(
+    /*
     id: number,
     data: UpdateProductoDto,
     linea: Linea,
@@ -214,6 +228,7 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
       throw new DatabaseConnectionException(error);
     }
   }
+  */
 
 
   async updateEntity(uow: IUnitOfWork, producto: Producto): Promise<Producto> {
@@ -411,12 +426,19 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
   //
   // }
 
-  @Transactional()
-  async actualizarPreciosMasivo(
+  /**
+   * Busca los productos del alcance dado (línea o global) y simula el ajuste
+   * de precio de cada uno, sin persistir nada. Compartido entre
+   * actualizarPreciosMasivo() (persiste) y previsualizarActualizacionMasivo()
+   * (solo lectura), que necesitan exactamente el mismo cálculo.
+   */
+  private async prepararAjusteMasivo(
     dto: ActualizacionMasivaPrecioDto,
-  ): Promise<number> {
-    const repo = this.uow.getRepository(Producto);
-
+    repo: Repository<Producto>,
+  ): Promise<{
+    productos: Producto[];
+    resultados: { precioResultante: number; porcentajeResultante: number; valido: boolean }[];
+  }> {
     const query = repo
       .createQueryBuilder('producto')
       .where('producto.deletedAt IS NULL');
@@ -433,26 +455,60 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
     const resultados = productos.map((producto) =>
       producto.simularAjustePrecio(dto.tipoAjuste, dto.valor),
     );
+
+    return { productos, resultados };
+  }
+
+  @Transactional()
+  async actualizarPreciosMasivo(
+    dto: ActualizacionMasivaPrecioDto,
+  ): Promise<number> {
+    const repo = this.uow.getRepository(Producto);
+
+    const { productos, resultados } = await this.prepararAjusteMasivo(dto, repo);
+
     //busca el primer resultado que no sea válido y devuelve su índice. Si todos los resultados son válidos, devuelve -1.
     const indiceInvalido = resultados.findIndex(
       (resultado) => !resultado.valido,
     );
-    //si hay algún resultado inválido, lanza una excepción BadRequestException con un mensaje que indica cuál producto tiene un precio resultante inválido 
+    //si hay algún resultado inválido, lanza una excepción BadRequestException con un mensaje que indica cuál producto tiene un precio resultante inválido
     if (indiceInvalido !== -1) {
       throw new BadRequestException(
         `La actualización dejaría el precio del producto "${productos[indiceInvalido].denominacion}" en un valor inválido (${resultados[indiceInvalido].precioResultante}). Se rechaza la operación completa y ningún producto fue modificado.`,
       );
     }
-    //el forEach se hace para actualizar los precios y porcentajes de los productos con los resultados calculados previamente, ya viendo que todos son válidos. 
+    //el forEach se hace para actualizar los precios y porcentajes de los productos con los resultados calculados previamente, ya viendo que todos son válidos.
     productos.forEach((producto, index) => {
       producto.precio = resultados[index].precioResultante;
       producto.porcentaje = resultados[index].porcentajeResultante;
     });
 
-
  //guarda todos los productos actualizados en la base de datos usando el repositorio y devuelve la cantidad de productos modificados.
     await repo.save(productos);
     return productos.length;
+  }
+
+  /**
+   * CR-006 (HU3): igual cálculo que actualizarPreciosMasivo(), pero de solo
+   * lectura. Devuelve todos los productos del alcance, inválidos incluidos
+   * con valido=false, para que el frontend los muestre antes de confirmar.
+   */
+  async previsualizarActualizacionMasivo(
+    dto: ActualizacionMasivaPrecioDto,
+  ): Promise<PreviewActualizacionMasivaPrecioDto[]> {
+    const { productos, resultados } = await this.prepararAjusteMasivo(
+      dto,
+      this.repository,
+    );
+
+    return productos.map((producto, index) => ({
+      id: producto.id,
+      denominacion: producto.denominacion,
+      precioActual: producto.precio ?? 0,
+      precioResultante: resultados[index].precioResultante,
+      porcentajeResultante: resultados[index].porcentajeResultante,
+      valido: resultados[index].valido,
+    }));
   }
 
   async findByDenominacion(denominacion: string): Promise<Producto | null> {
