@@ -11,6 +11,7 @@ import { IUnitOfWork } from 'src/modules/common/unit-of-work/iunit-of-work.';
 import { Usuario } from 'src/modules/gestion-usuario/usuario/domain/entities/usuario.entity';
 import { UpdatePrecioDto } from '../../dto/update-precio.dto';
 import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
+import { PreviewActualizacionMasivaPrecioDto } from '../../dto/preview-actualizacion-masiva-precio.dto';
 
 @Injectable()
 export class ProductoRepository implements IProductoRepository {
@@ -26,45 +27,48 @@ export class ProductoRepository implements IProductoRepository {
 
   private readonly ENTITY_NAME = 'Producto';
 
-  async create(
-    data: CreateProductoDto,
-    linea: Linea,
-    marca: Marca,
-    usuario: Usuario,
-  ): Promise<Producto> {
-    this.logger.log(`Creando un nuevo `);
-    try {
-      return await this.persistenceService.create(
-        data,
-        linea,
-        marca,
-        usuario,
-      );
-    } catch (error) {
-      this.logger.error(`Error al crear ${this.ENTITY_NAME}: `);
-      throw new DatabaseConnectionException(
-        'No se pudo crear la entidad en la base de datos.',
-      );
-    }
-  }
-
-  async update(
-    id: number,
-    data: UpdateProductoDto,
-    linea: Linea,
-    marca: Marca,
-
-    usuario: Usuario,
-  ): Promise<Producto> {
-    return this.persistenceService.update(
-      id,
-      data,
-      linea,
-      marca,
-
-      usuario,
-    );
-  }
+  // DEPRECADO: el alta y la edición las resuelve ProductoService armando la
+  // entidad y llamando a save(). Se comentan (no se borran) para referencia.
+  //
+  // async create(
+  //   data: CreateProductoDto,
+  //   linea: Linea,
+  //   marca: Marca,
+  //   usuario: Usuario,
+  // ): Promise<Producto> {
+  //   this.logger.log(`Creando un nuevo `);
+  //   try {
+  //     return await this.persistenceService.create(
+  //       data,
+  //       linea,
+  //       marca,
+  //       usuario,
+  //     );
+  //   } catch (error) {
+  //     this.logger.error(`Error al crear ${this.ENTITY_NAME}: `);
+  //     throw new DatabaseConnectionException(
+  //       'No se pudo crear la entidad en la base de datos.',
+  //     );
+  //   }
+  // }
+  //
+  // async update(
+  //   id: number,
+  //   data: UpdateProductoDto,
+  //   linea: Linea,
+  //   marca: Marca,
+  //
+  //   usuario: Usuario,
+  // ): Promise<Producto> {
+  //   return this.persistenceService.update(
+  //     id,
+  //     data,
+  //     linea,
+  //     marca,
+  //
+  //     usuario,
+  //   );
+  // }
 
   async updateEntity(uow: IUnitOfWork, data: Producto): Promise<Producto> {
     return this.persistenceService.updateEntity(uow, data);
@@ -145,6 +149,12 @@ export class ProductoRepository implements IProductoRepository {
     dto: ActualizacionMasivaPrecioDto,
   ): Promise<number> {
     return this.persistenceService.actualizarPreciosMasivo(dto);
+  }
+
+  async previsualizarActualizacionMasivo(
+    dto: ActualizacionMasivaPrecioDto,
+  ): Promise<PreviewActualizacionMasivaPrecioDto[]> {
+    return this.persistenceService.previsualizarActualizacionMasivo(dto);
   }
 
 

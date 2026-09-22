@@ -19,6 +19,7 @@ import { CreateProductoDto } from '../../dto/create-producto.dto';
 import { GetProductoDto } from '../../dto/get-producto.dto';
 import { UpdateProductoDto } from '../../dto/update-producto.dto';
 import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
+import { PreviewActualizacionMasivaPrecioDto } from '../../dto/preview-actualizacion-masiva-precio.dto';
 import { ProductoMapper } from '../../mappers/producto.mapper';
 import { LineaService } from 'src/modules/gestion-productos/linea/application/services/linea.service';
 import { MarcaService } from 'src/modules/gestion-productos/marca/application/services/marca.service';
@@ -69,7 +70,7 @@ export class ProductoService {
 
   async create(dto: CreateProductoDto) {
     this.logger.log(`Creando un nuevo ${this.ENTITY_NAME}`);
-    // Si no se proporciona porcentaje, se asigna el valor por defecto
+    // Si no se proporciona porcentaje, se asigna el valor por defecto, muta el dto recibido
     dto.porcentaje = dto.porcentaje ?? this.PORCENTAJE_MARGEN_DEFAULT;
 
     const { marca, linea, usuario } =
@@ -99,6 +100,9 @@ export class ProductoService {
 
     // Infraestructura: unicidad sobre el nombre final ya normalizado.
     await this.uniquenessValidator.validarDenominacionUnica(entity.denominacion);
+
+    // Dominio: el precio se deriva de costo y porcentaje, nunca del DTO.
+    entity.calcularPrecio();
 
     const { denominacion } = await this.repository.save(entity);
 
@@ -145,6 +149,9 @@ export class ProductoService {
       );
     }
 
+    // Dominio: el costo o el porcentaje pudieron cambiar, se recalcula el precio.
+    entity.calcularPrecio();
+
     const { denominacion } = await this.repository.save(entity);
 
     return MessageFrontUtils.createSimple(
@@ -155,8 +162,11 @@ export class ProductoService {
   }
 
   async actualizarPreciosMasivo(dto: ActualizacionMasivaPrecioDto) {
+     
+    await this.usuarioValidator.validarUsuarioExiste(dto.usuarioId)
+
     if (dto.alcance === 'linea') {
-      await this.lineaService.findEntityById(dto.lineaId as number);
+      await this.lineaService.findEntityById(dto.lineaId as number)
     }
 
     const cantidadActualizados =
@@ -166,6 +176,21 @@ export class ProductoService {
       `Se actualizaron los precios de ${cantidadActualizados} producto(s)`,
       cantidadActualizados,
     );
+  }
+
+  /**
+   * CR-006 (HU3): devuelve la previsualización de la actualización masiva de
+   * precios, sin persistir nada, incluyendo los productos inválidos para que
+   * el frontend los señale.
+   */
+  async previsualizarActualizacionMasivo(
+    dto: ActualizacionMasivaPrecioDto,
+  ): Promise<PreviewActualizacionMasivaPrecioDto[]> {
+    if (dto.alcance === 'linea') {
+      await this.lineaService.findEntityById(dto.lineaId as number);
+    }
+
+    return this.repository.previsualizarActualizacionMasivo(dto);
   }
 
   async findByRapido(

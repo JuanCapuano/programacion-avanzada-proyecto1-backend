@@ -259,4 +259,49 @@ describe('Producto (Aggregate Root) — denominación y presentación', () => {
       expect(existente.denominacion).toBe('gaseosa cola grande');
     });
   });
+
+  describe('cálculo de precio', () => {
+    it('margen estándar: costo 1000 con 15% da 1150', () => {
+      const producto = new Producto();
+      producto.costo = 1000;
+      producto.porcentaje = 15;
+
+      expect(producto.calcularPrecio()).toBe(1150);
+      expect(producto.precio).toBe(1150);
+    });
+
+    it('margen especial: costo 1000 con 25% da 1250', () => {
+      const producto = new Producto();
+      producto.costo = 1000;
+      producto.porcentaje = 25;
+
+      expect(producto.calcularPrecio()).toBe(1250);
+      expect(producto.precio).toBe(1250);
+    });
+
+    it('costo 0 da precio 0', () => {
+      const producto = new Producto();
+      producto.costo = 0;
+      producto.porcentaje = 15;
+
+      expect(producto.calcularPrecio()).toBe(0);
+      expect(producto.precio).toBe(0);
+    });
+
+    it('sin costo da precio 0', () => {
+      const producto = new Producto();
+      producto.porcentaje = 15;
+
+      expect(producto.calcularPrecio()).toBe(0);
+      expect(producto.precio).toBe(0);
+    });
+
+    it('sin porcentaje el margen es 0% y el precio es igual al costo', () => {
+      const producto = new Producto();
+      producto.costo = 1000;
+
+      expect(producto.calcularPrecio()).toBe(1000);
+      expect(producto.precio).toBe(1000);
+    });
+  });
 });

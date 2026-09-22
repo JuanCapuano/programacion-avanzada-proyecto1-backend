@@ -7,6 +7,7 @@ import { IUnitOfWork } from 'src/modules/common/unit-of-work/iunit-of-work.';
 import { Usuario } from 'src/modules/gestion-usuario/usuario/domain/entities/usuario.entity';
 import { UpdatePrecioDto } from '../../dto/update-precio.dto';
 import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
+import { PreviewActualizacionMasivaPrecioDto } from '../../dto/preview-actualizacion-masiva-precio.dto';
 
 export interface IProductoRepository {
 
@@ -14,12 +15,15 @@ export interface IProductoRepository {
     entity: Producto
   ): Promise<Producto>;
   
-  create(
-    data: CreateProductoDto,
-    linea: Linea,
-    marca: Marca,
-    usuario: Usuario,
-  ): Promise<Producto>;
+  // DEPRECADO: el alta la resuelve ProductoService armando la entidad y
+  // llamando a save(). Se comenta (no se borra) para referencia.
+  //
+  // create(
+  //   data: CreateProductoDto,
+  //   linea: Linea,
+  //   marca: Marca,
+  //   usuario: Usuario,
+  // ): Promise<Producto>;
 
   findOne(id: number): Promise<Producto | null>;
   findByIdConAuditoria(id: number): Promise<Producto | null>;
@@ -48,13 +52,16 @@ export interface IProductoRepository {
 
   findByIdWithoutRelations(id: number): Promise<Producto | null> | undefined;
 
-  update(
-    id: number,
-    data: UpdateProductoDto,
-    linea: Linea,
-    marca: Marca,
-    usuario: Usuario,
-  ): Promise<Producto>;
+  // DEPRECADO: la edición la resuelve ProductoService y persiste con save().
+  // Se comenta (no se borra) para referencia.
+  //
+  // update(
+  //   id: number,
+  //   data: UpdateProductoDto,
+  //   linea: Linea,
+  //   marca: Marca,
+  //   usuario: Usuario,
+  // ): Promise<Producto>;
 
   updateEntity(uow: IUnitOfWork, data: Producto): Promise<Producto>;
 
@@ -91,4 +98,8 @@ export interface IProductoRepository {
   findByIds(ids: number[]): Promise<Producto[]>;
 
   actualizarPreciosMasivo(dto: ActualizacionMasivaPrecioDto): Promise<number>;
+
+  previsualizarActualizacionMasivo(
+    dto: ActualizacionMasivaPrecioDto,
+  ): Promise<PreviewActualizacionMasivaPrecioDto[]>;
 }

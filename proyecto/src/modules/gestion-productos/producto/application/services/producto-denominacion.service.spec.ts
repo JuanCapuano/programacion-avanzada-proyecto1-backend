@@ -41,6 +41,8 @@ describe('ProductoService — denominación automática (CR-005)', () => {
     utilizaStockMinimo: false,
     utilizaPack: false,
     usuarioCreatedId: 9,
+    presentacionCantidad: 1.5,
+    presentacionUnidad: UnidadMedida.LITRO,
   };
 
   beforeEach(async () => {
@@ -113,7 +115,7 @@ describe('ProductoService — denominación automática (CR-005)', () => {
     it('US-10: sin denominación, la genera automáticamente', async () => {
       await service.create({ ...altaBase } as any);
 
-      expect(productoGuardado().denominacion).toBe('coca-cola gaseosas');
+      expect(productoGuardado().denominacion).toBe('coca-cola gaseosas 1.5 l');
       expect(productoGuardado().origenDenominacion).toBe(
         OrigenDenominacion.AUTOMATICA,
       );
@@ -132,7 +134,7 @@ describe('ProductoService — denominación automática (CR-005)', () => {
     it('valida la unicidad del nombre GENERADO', async () => {
       await service.create({ ...altaBase } as any);
 
-      expect(unicidad.validarDenominacionUnica).toHaveBeenCalledWith('coca-cola gaseosas');
+      expect(unicidad.validarDenominacionUnica).toHaveBeenCalledWith('coca-cola gaseosas 1.5 l');
     });
 
     it('valida la unicidad del nombre manual ya normalizado', async () => {
@@ -299,6 +301,8 @@ describe('ProductoService — denominación automática (CR-005)', () => {
       const { denominacion } = await service.previsualizarDenominacion({
         marcaId: 1,
         lineaId: 2,
+        presentacionCantidad: 1.5,
+        presentacionUnidad: UnidadMedida.LITRO,
       });
       await service.create({ ...altaBase } as any);
 

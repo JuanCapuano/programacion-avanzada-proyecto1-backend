@@ -245,7 +245,10 @@ export class Producto {
     return {
       precioResultante,
       porcentajeResultante,
-      valido: precioResultante > 0,
+      valido:
+      precioResultante > 0 &&
+      porcentajeResultante >= -99.99 &&
+      porcentajeResultante <= 999.99,
     };
   }
 

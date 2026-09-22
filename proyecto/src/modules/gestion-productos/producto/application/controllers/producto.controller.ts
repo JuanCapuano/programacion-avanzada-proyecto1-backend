@@ -33,6 +33,7 @@ import { NormalizeDenominacionSearchPipe } from 'src/modules/common/pipes/normal
 import { DenominacionBusquedaDto } from 'src/modules/common/dto/denominacion-busqueda.dto';
 import { SearchProductoRapidoDto } from '../../dto/search-producto-rapido.dto';
 import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
+import { PreviewActualizacionMasivaPrecioDto } from '../../dto/preview-actualizacion-masiva-precio.dto';
 import { ProductoService } from '../services/producto.service';
 import { ProductoDomainExceptionFilter } from '../filters/producto-domain-exception.filter';
 import { PrevisualizarDenominacionDto } from '../../dto/previsualizar-denominacion.dto';
@@ -63,6 +64,21 @@ export class ProductoController {
   actualizarPreciosMasivo(@Body() dto: ActualizacionMasivaPrecioDto) {
     this.logger.log('Actualizando precios de forma masiva...');
     return this.service.actualizarPreciosMasivo(dto);
+  }
+
+  /**
+   * CR-006 (HU3): previsualiza el resultado de la actualización masiva de
+   * precios sin persistir nada, para que el frontend lo muestre antes de
+   * que el usuario confirme.
+   */
+  @Post('precios/actualizacion-masiva/preview')
+  @Roles('Root', 'Administrador')
+  @ApiOkResponse({ type: PreviewActualizacionMasivaPrecioDto, isArray: true })
+  previsualizarActualizacionMasivo(
+    @Body() dto: ActualizacionMasivaPrecioDto,
+  ): Promise<PreviewActualizacionMasivaPrecioDto[]> {
+    this.logger.log('Previsualizando actualización masiva de precios...');
+    return this.service.previsualizarActualizacionMasivo(dto);
   }
 
   @Get('find-all-for-marcas/select')
