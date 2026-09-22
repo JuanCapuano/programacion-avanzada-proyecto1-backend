@@ -7,7 +7,6 @@ import {
   Delete,
   Logger,
   ParseIntPipe,
-  Patch,
   Put,
   Patch,
   Query,
@@ -68,6 +67,24 @@ export class ProductoController {
     this.logger.log('Actualizando precios de forma masiva...');
     return this.service.actualizarPreciosMasivo(dto);
   }
+// Hay dos metodos iguales no cual es el que va, o si van los dos hay que cambiar el nombre
+/*@Patch('cambio-precios-masivo')
+@Roles('Root', 'Administrador', 'Empleado')
+async actualizarPreciosMasivo(@Body() dto: GuardarCambioPreciosMasivoDto) {
+  return this.service.actualizarPreciosMasivo(
+    dto.items.map((item) => ({
+      productoId: item.productoId,
+      dto: {
+        ...item,
+        motivo: dto.motivo,
+        usuarioId: dto.usuarioId,
+      },
+    })),
+    dto.motivo,
+    dto.usuarioId,
+  );*/
+
+
 
   /**
    * CR-006 (HU3): previsualiza el resultado de la actualización masiva de
@@ -215,23 +232,7 @@ export class ProductoController {
     this.logger.log(`Actualizando  ${this.ENTITY_NAME} con ID: ${id}`);
     return this.service.update(id, updateDto);
   }
-@Patch('cambio-precios-masivo')
-@Roles('Root', 'Administrador', 'Empleado')
-async actualizarPreciosMasivo(@Body() dto: GuardarCambioPreciosMasivoDto) {
-  return this.service.actualizarPreciosMasivo(
-    dto.items.map((item) => ({
-      productoId: item.productoId,
-      dto: {
-        ...item,
-        motivo: dto.motivo,
-        usuarioId: dto.usuarioId,
-      },
-    })),
-    dto.motivo,
-    dto.usuarioId,
-  );
 
-}
 
   /**
    * US-11: descarta la denominación manual y vuelve a generarla a partir de

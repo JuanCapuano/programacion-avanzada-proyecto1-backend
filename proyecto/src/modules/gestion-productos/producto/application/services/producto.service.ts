@@ -188,6 +188,67 @@ export class ProductoService {
       cantidadActualizados,
     );
   }
+  //Otro metodo duplicado iguak que el controller
+  /**
+   * Actualiza el precio de múltiples productos en una operación masiva.
+   * Registra en el historial cada producto cuyo precio efectivamente cambió.
+   *
+   * @param items  Lista de { productoId, dto } con los cambios a aplicar
+   * @param motivo Motivo general del cambio masivo (ej: "Ajuste por inflación")
+  
+  async actualizarPreciosMasivo(
+    items: Array<{ productoId: number; dto: UpdatePrecioDto }>,
+    motivo: string,
+    usuarioId: number,
+  ) {
+    this.logger.log(
+      `Actualización masiva de precios: ${items.length} productos. Motivo: "${motivo}"`,
+    );
+
+    const usuario = await this.usuarioValidator.validarUsuarioExiste(usuarioId);
+
+    const resultados = await Promise.all(
+      items.map(async ({ productoId, dto }) => {
+        const producto = await this.findEntityById(productoId);
+
+        const precioAnterior = producto.precio ?? 0;
+
+        await this.repository.actualizarPrecio(productoId, dto, usuario);
+
+        const registrado = await this.historialPrecioService.registrarSiCambio(
+          {
+            productoId,
+            precioAnterior,
+            costoAnterior: producto.costo ?? 0,
+            costoDolarAnterior: producto.costoDolar ?? 0,
+            cotizacionDolarAnterior: producto.cotizacionDolar ?? 0,
+            porcentajeAnterior: producto.porcentaje ?? 0,
+            precioNuevo: dto.precio,
+            costoNuevo: dto.costo,
+            costoDolarNuevo: dto.costoDolar,
+            cotizacionDolarNuevo: dto.cotizacionDolar,
+            porcentajeNuevo: dto.porcentaje,
+            motivo,
+            usuarioId,
+          },
+          producto,
+          usuario,
+        );
+
+        return { productoId, denominacion: producto.denominacion, registrado };
+      }),
+    ); 
+
+    const conCambio = resultados.filter((r) => r.registrado).length;
+    this.logger.log(
+      `Actualización masiva completada: ${conCambio}/${items.length} productos con cambio de precio registrado.`,
+    );
+
+    return {
+      mensaje: `Actualización masiva completada. ${conCambio} producto(s) con cambio de precio registrado.`,
+      detalle: resultados,
+    };
+  }*/
 
   /**
    * CR-006 (HU3): devuelve la previsualización de la actualización masiva de
@@ -365,13 +426,7 @@ export class ProductoService {
     return this.repository.findByIds(ids);
   }
 
-  /**
-   * Guarda directamente los campos de precio en un producto ya cargado.
-   * Usado internamente por el cambio masivo para evitar recargar la entidad.
-   */
-  async actualizarPrecioDirecto(id: number, dto: UpdatePrecioDto, usuario: Usuario): Promise<void> {
-    await this.persistenceAdapter.actualizarPrecio(id, dto, usuario);
-  }
+
 
   async incrementarStock(
     uow: IUnitOfWork,
@@ -440,8 +495,9 @@ export class ProductoService {
     // Capturar valores anteriores ANTES de modificar la entidad
     const precioAnterior = dto.precioAnterior ?? producto.precio ?? 0;
 
+    // El metodo al que llama esta comentado en el repo
     // Actualizar la entidad en la base de datos
-    await this.repository.actualizarPrecio(id, dto, usuario);
+    //await this.repository.actualizarPrecio(id, dto, usuario);
 
     // Registrar en historial si el precio cambió
     await this.historialPrecioService.registrarSiCambio(
@@ -469,66 +525,6 @@ export class ProductoService {
     );
   }
 
-  /**
-   * Actualiza el precio de múltiples productos en una operación masiva.
-   * Registra en el historial cada producto cuyo precio efectivamente cambió.
-   *
-   * @param items  Lista de { productoId, dto } con los cambios a aplicar
-   * @param motivo Motivo general del cambio masivo (ej: "Ajuste por inflación")
-   */
-  async actualizarPreciosMasivo(
-    items: Array<{ productoId: number; dto: UpdatePrecioDto }>,
-    motivo: string,
-    usuarioId: number,
-  ) {
-    this.logger.log(
-      `Actualización masiva de precios: ${items.length} productos. Motivo: "${motivo}"`,
-    );
-
-    const usuario = await this.usuarioValidator.validarUsuarioExiste(usuarioId);
-
-    const resultados = await Promise.all(
-      items.map(async ({ productoId, dto }) => {
-        const producto = await this.findEntityById(productoId);
-
-        const precioAnterior = producto.precio ?? 0;
-
-        await this.repository.actualizarPrecio(productoId, dto, usuario);
-
-        const registrado = await this.historialPrecioService.registrarSiCambio(
-          {
-            productoId,
-            precioAnterior,
-            costoAnterior: producto.costo ?? 0,
-            costoDolarAnterior: producto.costoDolar ?? 0,
-            cotizacionDolarAnterior: producto.cotizacionDolar ?? 0,
-            porcentajeAnterior: producto.porcentaje ?? 0,
-            precioNuevo: dto.precio,
-            costoNuevo: dto.costo,
-            costoDolarNuevo: dto.costoDolar,
-            cotizacionDolarNuevo: dto.cotizacionDolar,
-            porcentajeNuevo: dto.porcentaje,
-            motivo,
-            usuarioId,
-          },
-          producto,
-          usuario,
-        );
-
-        return { productoId, denominacion: producto.denominacion, registrado };
-      }),
-    );
-
-    const conCambio = resultados.filter((r) => r.registrado).length;
-    this.logger.log(
-      `Actualización masiva completada: ${conCambio}/${items.length} productos con cambio de precio registrado.`,
-    );
-
-    return {
-      mensaje: `Actualización masiva completada. ${conCambio} producto(s) con cambio de precio registrado.`,
-      detalle: resultados,
-    };
-  }
 
   /**
    * Orquesta todas las validaciones necesarias para crear un producto
