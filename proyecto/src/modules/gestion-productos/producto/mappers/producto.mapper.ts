@@ -110,6 +110,8 @@ export class ProductoMapper {
       sistema: entity.sistema,
       codigoReferencia: entity.codigoReferencia ?? '',
       presentacion: entity.obtenerPresentacion()?.toString(),
+      presentacionCantidad: entity.presentacionCantidad ?? null,
+      presentacionUnidad: entity.presentacionUnidad ?? null,
 
     };
   }

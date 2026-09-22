@@ -171,4 +171,12 @@ export class ProductoDto {
   @IsString()
   presentacion?: string;
 
+  @IsOptional()
+  @IsNumber()
+  presentacionCantidad?: number | null;
+
+  @IsOptional()
+  @IsString()
+  presentacionUnidad?: string | null;
+
 }
