@@ -261,6 +261,24 @@ export class Producto {
     };
   }
 
+  /**
+   * Aplica un ajuste masivo de precio (CR-006), mutando la entidad. Reutiliza
+   * el mismo cálculo que simularAjustePrecio(); si el resultado no es válido,
+   * rechaza el ajuste sin modificar el estado.
+   */
+  aplicarAjustePrecio(tipoAjuste: 'porcentaje' | 'monto', valor: number): void {
+    const { precioResultante, porcentajeResultante, valido } =
+      this.simularAjustePrecio(tipoAjuste, valor);
+
+    if (!valido) {
+      throw new ProductoDomainException(
+        `La actualización dejaría el precio del producto "${this.denominacion}" en un valor inválido (${precioResultante}). Se rechaza la operación completa y ningún producto fue modificado.`,
+      );
+    }
+    this.porcentaje = porcentajeResultante;
+    this.calcularPrecio(); // el precio se deriva de costo + margen
+  }
+
   // =====================================================================
   // Comportamiento de dominio
   // =====================================================================

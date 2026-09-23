@@ -173,19 +173,29 @@ export class ProductoService {
   }
 
   async actualizarPreciosMasivo(dto: ActualizacionMasivaPrecioDto) {
-     
+
     await this.usuarioValidator.validarUsuarioExiste(dto.usuarioId)
 
     if (dto.alcance === 'linea') {
       await this.lineaService.findEntityById(dto.lineaId as number)
     }
 
-    const cantidadActualizados =
-      await this.repository.actualizarPreciosMasivo(dto);
+    const productos = await this.repository.findParaAjusteMasivo(
+      dto.alcance,
+      dto.lineaId,
+    );
 
-    return MessageFrontUtils.createdItem(
-      `Se actualizaron los precios de ${cantidadActualizados} producto(s)`,
-      cantidadActualizados,
+    // Dominio: cada producto valida y aplica su propio ajuste. Si alguno es
+    // inválido, tira ProductoDomainException acá mismo, antes de que se
+    // guarde nada (saveMany ni se llega a invocar).
+    productos.forEach((producto) =>
+      producto.aplicarAjustePrecio(dto.tipoAjuste, dto.valor),
+    );
+
+    await this.repository.saveMany(productos);
+
+    return MessageFrontUtils.create(
+      `Se actualizaron los precios de ${productos.length} producto(s)`,
     );
   }
   //Otro metodo duplicado iguak que el controller
@@ -262,7 +272,22 @@ export class ProductoService {
       await this.lineaService.findEntityById(dto.lineaId as number);
     }
 
-    return this.repository.previsualizarActualizacionMasivo(dto);
+    const productos = await this.repository.findParaAjusteMasivo(
+      dto.alcance,
+      dto.lineaId,
+    );
+
+    return productos.map((producto) => {
+      const resultado = producto.simularAjustePrecio(dto.tipoAjuste, dto.valor);
+      return {
+        id: producto.id,
+        denominacion: producto.denominacion,
+        precioActual: producto.precio ?? 0,
+        precioResultante: resultado.precioResultante,
+        porcentajeResultante: resultado.porcentajeResultante,
+        valido: resultado.valido,
+      };
+    });
   }
 
   async findByRapido(

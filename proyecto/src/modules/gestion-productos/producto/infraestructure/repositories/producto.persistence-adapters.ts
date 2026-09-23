@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Inject,
   Injectable,
   Logger,
@@ -19,8 +18,6 @@ import { IProductoRepository } from '../../domain/interfaces/producto.repository
 import { CreateProductoDto } from '../../dto/create-producto.dto';
 import { UpdatePrecioDto } from '../../dto/update-precio.dto';
 import { UpdateProductoDto } from '../../dto/update-producto.dto';
-import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
-import { PreviewActualizacionMasivaPrecioDto } from '../../dto/preview-actualizacion-masiva-precio.dto';
 import { ProductoMapper } from '../../mappers/producto.mapper';
 
 
@@ -427,88 +424,29 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
   // }
 
   /**
-   * Busca los productos del alcance dado (línea o global) y simula el ajuste
-   * de precio de cada uno, sin persistir nada. Compartido entre
-   * actualizarPreciosMasivo() (persiste) y previsualizarActualizacionMasivo()
-   * (solo lectura), que necesitan exactamente el mismo cálculo.
+   * Trae los productos del alcance pedido (una línea puntual o todos), sin
+   * decidir nada sobre precios: eso es responsabilidad de Producto
+   * (aplicarAjustePrecio / simularAjustePrecio), invocada desde el service.
    */
-  private async prepararAjusteMasivo(
-    dto: ActualizacionMasivaPrecioDto,
-    repo: Repository<Producto>,
-  ): Promise<{
-    productos: Producto[];
-    resultados: { precioResultante: number; porcentajeResultante: number; valido: boolean }[];
-  }> {
-    const query = repo
+  async findParaAjusteMasivo(
+    alcance: 'linea' | 'global',
+    lineaId?: number,
+  ): Promise<Producto[]> {
+    const query = this.repository
       .createQueryBuilder('producto')
       .where('producto.deletedAt IS NULL');
 
-    if (dto.alcance === 'linea') {
-      query.andWhere('producto.linea_id = :lineaId', {
-        lineaId: dto.lineaId,
-      });
+    if (alcance === 'linea') {
+      query.andWhere('producto.linea_id = :lineaId', { lineaId });
     }
 
-    const productos = await query.getMany();
-    //el map recorre todos los productos y calcula el precio resultante y el porcentaje resultante para cada producto
-    //  usando el método simularAjustePrecio de la entidad Producto. El resultado es un array de objetos con las propiedades precioResultante, porcentajeResultante y valido.
-    const resultados = productos.map((producto) =>
-      producto.simularAjustePrecio(dto.tipoAjuste, dto.valor),
-    );
-
-    return { productos, resultados };
+    return query.getMany();
   }
 
   @Transactional()
-  async actualizarPreciosMasivo(
-    dto: ActualizacionMasivaPrecioDto,
-  ): Promise<number> {
+  async saveMany(entities: Producto[]): Promise<Producto[]> {
     const repo = this.uow.getRepository(Producto);
-
-    const { productos, resultados } = await this.prepararAjusteMasivo(dto, repo);
-
-    //busca el primer resultado que no sea válido y devuelve su índice. Si todos los resultados son válidos, devuelve -1.
-    const indiceInvalido = resultados.findIndex(
-      (resultado) => !resultado.valido,
-    );
-    //si hay algún resultado inválido, lanza una excepción BadRequestException con un mensaje que indica cuál producto tiene un precio resultante inválido
-    if (indiceInvalido !== -1) {
-      throw new BadRequestException(
-        `La actualización dejaría el precio del producto "${productos[indiceInvalido].denominacion}" en un valor inválido (${resultados[indiceInvalido].precioResultante}). Se rechaza la operación completa y ningún producto fue modificado.`,
-      );
-    }
-    //el forEach se hace para actualizar los precios y porcentajes de los productos con los resultados calculados previamente, ya viendo que todos son válidos.
-    productos.forEach((producto, index) => {
-      producto.precio = resultados[index].precioResultante;
-      producto.porcentaje = resultados[index].porcentajeResultante;
-    });
-
- //guarda todos los productos actualizados en la base de datos usando el repositorio y devuelve la cantidad de productos modificados.
-    await repo.save(productos);
-    return productos.length;
-  }
-
-  /**
-   * CR-006 (HU3): igual cálculo que actualizarPreciosMasivo(), pero de solo
-   * lectura. Devuelve todos los productos del alcance, inválidos incluidos
-   * con valido=false, para que el frontend los muestre antes de confirmar.
-   */
-  async previsualizarActualizacionMasivo(
-    dto: ActualizacionMasivaPrecioDto,
-  ): Promise<PreviewActualizacionMasivaPrecioDto[]> {
-    const { productos, resultados } = await this.prepararAjusteMasivo(
-      dto,
-      this.repository,
-    );
-
-    return productos.map((producto, index) => ({
-      id: producto.id,
-      denominacion: producto.denominacion,
-      precioActual: producto.precio ?? 0,
-      precioResultante: resultados[index].precioResultante,
-      porcentajeResultante: resultados[index].porcentajeResultante,
-      valido: resultados[index].valido,
-    }));
+    return repo.save(entities);
   }
 
   async findByDenominacion(denominacion: string): Promise<Producto | null> {
