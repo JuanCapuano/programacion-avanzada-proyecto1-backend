@@ -5,6 +5,7 @@ import { EntityNotFoundException } from 'src/modules/common/exceptions/entity-no
 import { Repository, DataSource } from 'typeorm';
 import { CreateLineaDto } from '../../dto/create-linea.dto';
 import { Linea } from '../../domain/entities/linea.entity';
+import { SuperLinea } from 'src/modules/gestion-productos/super-linea/domain/entities/super-linea.entity';
 import { ILineaRepository } from '../../domain/interfaces/linea.repository.interface';
 import { UpdateLineaDto } from '../../dto/update-linea.dto';
 import { IUnitOfWork } from 'src/modules/common/unit-of-work/iunit-of-work.';
@@ -15,6 +16,7 @@ import { FechaUtils } from 'src/modules/common/utils/date/fecha-utils';
 import { QueryBuilderHelper } from 'src/modules/common/query-builders/query-builder-helpers';
 import { BasePersistenceAdapter } from 'src/modules/common/persistence/base-persistence.adapter';
 import { handleDatabaseError } from 'src/modules/common/query-builders/database-error.helper';
+
 
 @Injectable()
 export class LineaPersistenceAdapter
@@ -38,8 +40,17 @@ export class LineaPersistenceAdapter
   @Transactional()
   async create(data: CreateLineaDto): Promise<Linea> {
     const repo = this.uow.getRepository(Linea);
+    const superLineaRepo = this.uow.getRepository(SuperLinea);
+
 
     try {
+      //Cargar la entidad de super linea para asegurar que existe
+      const superLinea = await superLineaRepo.findOne({ where: { id: data.superLineaId } });
+
+      if (!superLinea) {
+        throw new EntityNotFoundException('Super línea no encontrada');
+      }
+
       // Creamos la entidad sin sublíneas
       const nuevaEntity = repo.create({
         denominacion: data.denominacion,
@@ -47,11 +58,12 @@ export class LineaPersistenceAdapter
         stockMinimo: data.stockMinimo,
         usuarioCreatedId: data.usuarioCreatedId,
         observacion: data.observacion,
+        superLinea: superLinea,
       });
 
       const entityGuardada = await repo.save(nuevaEntity);
 
-
+      this.logger.log(`Entidad creada con ID: ${entityGuardada.id}`);
       return entityGuardada;
     } catch (error) {
       this.logger.error(`Error al conectar con la base de datos: ${error}`);
@@ -67,6 +79,7 @@ export class LineaPersistenceAdapter
     data: UpdateLineaDto,
   ): Promise<Linea> {
     const repo = this.uow.getRepository(Linea);
+    const superLineaRepo = this.uow.getRepository(SuperLinea);
 
     const entity = await repo.findOne({
       where: { id }
@@ -76,12 +89,18 @@ export class LineaPersistenceAdapter
       throw new NotFoundException(`Línea con ID ${id} no encontrada`);
     }
 
+    const superLinea = await superLineaRepo.findOne({ where: { id: data.superLineaId } });
+
     // Actualizar datos simples
     entity.denominacion = data.denominacion ?? entity.denominacion;
     entity.utilizaStockMinimo = data.utilizaStockMinimo;
     entity.stockMinimo = data.stockMinimo ?? 0;
     entity.usuarioCreatedId = data.usuarioCreatedId;
+    entity.superLinea = superLinea;
+    
 
+    this.logger.log(`Entidad actualizada con ID: ${entity.id}`);
+    this.logger.log(`Entidad actualizada: ${JSON.stringify(entity)}`);
     // Guardar entidad antes de procesar sublíneas (opcional según lógica de negocio)
     const entityActualizada = await repo.save(entity);
 
@@ -179,6 +198,7 @@ export class LineaPersistenceAdapter
   ): Promise<{ data: Linea[]; total: number }> {
     try {
       const query = this.baseQuery(incluirEliminados)
+        .leftJoinAndSelect(`${this.ALIAS}.superLinea`, 'superLinea');
 
       if (denominacion) {
         query.andWhere(`UPPER(${this.ALIAS}.denominacion) LIKE :denominacion`, {

@@ -24,10 +24,10 @@ import { UsuarioModule } from 'src/modules/gestion-usuario/usuario/usuario.modul
   providers: [
     PoliticaEliminacionSuperLinea,
     SuperLineaService,
-    SuperLineaPersistenceAdapter,
+    SuperLineaRepository,
     {
       provide: 'ISuperLineaRepository',
-      useClass: SuperLineaRepository
+      useClass: SuperLineaPersistenceAdapter,
     },
     {
       provide: 'UnitOfWork',
@@ -39,7 +39,6 @@ import { UsuarioModule } from 'src/modules/gestion-usuario/usuario/usuario.modul
     NormalizeDenominacionPipe
   ],
   exports: [
-    SuperLineaPersistenceAdapter,
     SuperLineaService,
     'ISuperLineaRepository'
   ]

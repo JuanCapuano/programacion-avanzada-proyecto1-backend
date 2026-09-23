@@ -15,7 +15,9 @@ export class LineaMapper {
       observacion: entity.observacion ?? '',
       sistema: entity.sistema,
       deletedAt: entity.deletedAt ? entity.deletedAt.toISOString() : null,
-
+      superLinea: entity.superLinea
+        ? {id: entity.superLinea.id, denominacion: entity.superLinea.denominacion}
+        : null,
     };
   }
 }

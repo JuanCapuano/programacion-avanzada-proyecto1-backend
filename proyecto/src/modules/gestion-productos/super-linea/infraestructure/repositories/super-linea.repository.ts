@@ -63,7 +63,7 @@ export class SuperLineaRepository implements ISuperLineaRepository {
 
     async delete(id: number, usuarioId: number): Promise<SuperLinea> {
         this.logger.log(`Eliminando ${this.ENTITY_NAME} con ID: ${id}`);
-        return this.persistenceService.delete(id);
+        return this.persistenceService.delete(id, usuarioId);
     }
 
     async findByIdConAuditoria(id: number): Promise<AuditoriaDto | null> {

@@ -8,6 +8,7 @@ import {
   OneToMany,
   Index,
   ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 
 import { Producto } from '../../../producto/domain/entities/producto.entity';
@@ -30,7 +31,8 @@ export class Linea {
   productos: Producto[];
 
   @ManyToOne(() => SuperLinea, (superLinea) => superLinea.lineas)
-  superLinea: SuperLinea;
+  @JoinColumn({ name: 'super_linea_id' })
+  superLinea?: SuperLinea | null;
  
   @Column('boolean', { default: false })
   utilizaStockMinimo: boolean;
