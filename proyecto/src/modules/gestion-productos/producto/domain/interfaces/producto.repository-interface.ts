@@ -6,8 +6,6 @@ import { UpdateProductoDto } from '../../dto/update-producto.dto';
 import { IUnitOfWork } from 'src/modules/common/unit-of-work/iunit-of-work.';
 import { Usuario } from 'src/modules/gestion-usuario/usuario/domain/entities/usuario.entity';
 import { UpdatePrecioDto } from '../../dto/update-precio.dto';
-import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
-import { PreviewActualizacionMasivaPrecioDto } from '../../dto/preview-actualizacion-masiva-precio.dto';
 
 export interface IProductoRepository {
 
@@ -97,9 +95,16 @@ export interface IProductoRepository {
 
   findByIds(ids: number[]): Promise<Producto[]>;
 
-  actualizarPreciosMasivo(dto: ActualizacionMasivaPrecioDto): Promise<number>;
+  /**
+   * Trae los productos del alcance dado (línea puntual o todos), sin aplicar
+   * ni calcular ningún ajuste: la decisión de qué es válido y la mutación de
+   * precio/porcentaje quedan en Producto.aplicarAjustePrecio() /
+   * simularAjustePrecio(), invocadas desde la capa de aplicación.
+   */
+  findParaAjusteMasivo(
+    alcance: 'linea' | 'global',
+    lineaId?: number,
+  ): Promise<Producto[]>;
 
-  previsualizarActualizacionMasivo(
-    dto: ActualizacionMasivaPrecioDto,
-  ): Promise<PreviewActualizacionMasivaPrecioDto[]>;
+  saveMany(entities: Producto[]): Promise<Producto[]>;
 }
