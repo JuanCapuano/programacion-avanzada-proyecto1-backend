@@ -137,8 +137,19 @@ export class ProductoService {
       );
     }
 
-    // La denominación no se copia del DTO: solo entra a la entidad por el dominio.
-    const { denominacion: denominacionIngresada, ...datos } = dto;
+    // La denominación y los datos de precio no se copian del DTO: solo entran
+    // a la entidad por el dominio. El motivo no es un campo del producto.
+    const {
+      denominacion: denominacionIngresada,
+      costo,
+      porcentaje,
+      // costoDolar, // SIN USO por ahora en el cálculo del precio
+      motivo,
+      ...datos
+    } = dto;
+
+    // CR-007: foto del precio antes de aplicar cambios, para el historial.
+    const datosPrecioAnteriores = entity.obtenerDatosPrecio();
 
     Object.assign(entity, datos);
     entity.linea = linea;
@@ -161,9 +172,20 @@ export class ProductoService {
     }
 
     // Dominio: el costo o el porcentaje pudieron cambiar, se recalcula el precio.
-    entity.calcularPrecio();
+    entity.actualizarCostoYMargen({ costo, porcentaje /*, costoDolar */ });
 
-    const { denominacion } = await this.repository.save(entity);
+    // CR-007: si el precio cambió, se exige motivo y se arma el historial.
+    const historial = this.historialPrecioService.prepararRegistroSiCambio(
+      datosPrecioAnteriores,
+      entity,
+      usuario,
+      motivo,
+    );
+
+    const [{ denominacion }] = await this.repository.guardarConHistorial(
+      [entity],
+      historial ? [historial] : [],
+    );
 
     return MessageFrontUtils.createSimple(
       `${this.ENTITY_NAME}`,
@@ -172,9 +194,52 @@ export class ProductoService {
     );
   }
 
+  /**
+   * CR-007: cambia el precio de un producto a través de su costo y/o
+   * porcentaje de margen (el precio nunca se recibe directamente) y registra
+   * el cambio en el historial si el precio resultante es distinto del actual.
+   * Producto e historial se guardan en la misma transacción.
+   */
+  async actualizarPrecio(id: number, dto: UpdatePrecioDto) {
+    this.logger.log(`Actualizando precio de ${this.ENTITY_NAME} con ID: ${id}`);
+
+    const usuario = await this.usuarioValidator.validarUsuarioExiste(dto.usuarioId);
+    const entity = await this.findEntityById(id);
+
+    const datosPrecioAnteriores = entity.obtenerDatosPrecio();
+
+    // Dominio: aplica costo/margen y recalcula el precio (valida > 0).
+    entity.actualizarCostoYMargen({
+      costo: dto.costo,
+      porcentaje: dto.porcentaje,
+      // SIN USO por ahora:
+      // costoDolar: dto.costoDolar,
+      // cotizacionDolar: dto.cotizacionDolar,
+    });
+    entity.usuarioUpdated = usuario;
+
+    const historial = this.historialPrecioService.prepararRegistroSiCambio(
+      datosPrecioAnteriores,
+      entity,
+      usuario,
+      dto.motivo,
+    );
+
+    await this.repository.guardarConHistorial(
+      [entity],
+      historial ? [historial] : [],
+    );
+
+    return MessageFrontUtils.create(
+      historial
+        ? `Precio del producto ${entity.denominacion} actualizado con éxito`
+        : `El precio del producto ${entity.denominacion} no cambió; no se registró historial`,
+    );
+  }
+
   async actualizarPreciosMasivo(dto: ActualizacionMasivaPrecioDto) {
 
-    await this.usuarioValidator.validarUsuarioExiste(dto.usuarioId)
+    const usuario = await this.usuarioValidator.validarUsuarioExiste(dto.usuarioId)
 
     if (dto.alcance === 'linea') {
       await this.lineaService.findEntityById(dto.lineaId as number)
@@ -185,18 +250,41 @@ export class ProductoService {
       dto.lineaId,
     );
 
+    const motivo = dto.motivo?.trim() || this.motivoAjusteMasivo(dto);
+
     // Dominio: cada producto valida y aplica su propio ajuste. Si alguno es
     // inválido, tira ProductoDomainException acá mismo, antes de que se
-    // guarde nada (saveMany ni se llega a invocar).
-    productos.forEach((producto) =>
-      producto.aplicarAjustePrecio(dto.tipoAjuste, dto.valor),
-    );
+    // guarde nada (guardarConHistorial ni se llega a invocar).
+    // CR-007: por cada producto cuyo precio cambió se arma su historial.
+    const historial = productos.flatMap((producto) => {
+      const datosPrecioAnteriores = producto.obtenerDatosPrecio();
+      producto.aplicarAjustePrecio(dto.tipoAjuste, dto.valor);
+      producto.usuarioUpdated = usuario;
 
-    await this.repository.saveMany(productos);
+      const registro = this.historialPrecioService.prepararRegistroSiCambio(
+        datosPrecioAnteriores,
+        producto,
+        usuario,
+        motivo,
+      );
+      return registro ? [registro] : [];
+    });
+
+    await this.repository.guardarConHistorial(productos, historial);
 
     return MessageFrontUtils.create(
       `Se actualizaron los precios de ${productos.length} producto(s)`,
     );
+  }
+
+  /** Motivo por defecto del historial cuando el ajuste masivo no trae uno. */
+  private motivoAjusteMasivo(dto: ActualizacionMasivaPrecioDto): string {
+    const signo = dto.valor > 0 ? '+' : '';
+    const ajuste =
+      dto.tipoAjuste === 'porcentaje' ? `${signo}${dto.valor}%` : `${signo}$${dto.valor}`;
+    const alcance =
+      dto.alcance === 'linea' ? `línea ${dto.lineaId}` : 'global';
+    return `Actualización masiva de precios (${alcance}): ${ajuste}`;
   }
   //Otro metodo duplicado iguak que el controller
   /**
@@ -498,11 +586,14 @@ export class ProductoService {
     return nuevoStock;
   }
 
+  // DEPRECADO (CR-007): recibía el precio desde el front. Reemplazado por
+  // actualizarPrecio() de más arriba, que cambia costo/porcentaje y deja que
+  // el dominio calcule el precio. Se comenta (no se borra) para referencia.
   /**
    * Actualiza el precio de un producto individual.
    * Valida que el precio resultante sea > 0 ANTES de persistir cualquier cambio.
    * Registra en el historial SOLO si el precio cambió efectivamente.
-   */
+  
   async actualizarPrecio(id: number, dto: UpdatePrecioDto) {
     this.logger.log(`[DEBUG] actualizarPrecio llamado — id=${id} dto=${JSON.stringify(dto)}`); 
     // Validar precio > 0 antes de cualquier operación de BD
@@ -511,7 +602,6 @@ export class ProductoService {
       throw new BadRequestException(
         `El precio (${dto.precio}) debe ser mayor a 0. El cambio fue rechazado.`,
       );
-    }
 
     const producto = await this.findEntityById(id);
     this.logger.log(`[BACK · ProductoService] precio actual en BD: ${producto.precio}`);
@@ -548,7 +638,8 @@ export class ProductoService {
     return MessageFrontUtils.create(
       `Precio del producto ${producto.denominacion} actualizado con éxito`,
     );
-  }
+    } 
+  }*/
 
 
   /**

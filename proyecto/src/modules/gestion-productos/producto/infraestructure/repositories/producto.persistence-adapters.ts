@@ -19,6 +19,7 @@ import { CreateProductoDto } from '../../dto/create-producto.dto';
 import { UpdatePrecioDto } from '../../dto/update-precio.dto';
 import { UpdateProductoDto } from '../../dto/update-producto.dto';
 import { ProductoMapper } from '../../mappers/producto.mapper';
+import { HistorialPrecioProducto } from '../../../historial-precio-producto/domain/entities/historial-precio-producto.entity';
 
 
 @Injectable()
@@ -447,6 +448,26 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
   async saveMany(entities: Producto[]): Promise<Producto[]> {
     const repo = this.uow.getRepository(Producto);
     return repo.save(entities);
+  }
+
+  @Transactional()
+  async guardarConHistorial(
+    productos: Producto[],
+    historial: HistorialPrecioProducto[],
+  ): Promise<Producto[]> {
+    try {
+      const guardados = await this.uow.getRepository(Producto).save(productos);
+      if (historial.length > 0) {
+        await this.uow.getRepository(HistorialPrecioProducto).save(historial);
+      }
+      this.logger.log(
+        `${guardados.length} ${this.ENTITY_NAME}(s) guardado(s) con ${historial.length} registro(s) de historial de precio`,
+      );
+      return guardados;
+    } catch (error) {
+      this.logger.error(`Error al guardar ${this.ENTITY_NAME} con historial de precio:`, error);
+      throw new DatabaseConnectionException('Error al guardar en la base de datos.');
+    }
   }
 
   async findByDenominacion(denominacion: string): Promise<Producto | null> {

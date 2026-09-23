@@ -6,6 +6,7 @@ import { UpdateProductoDto } from '../../dto/update-producto.dto';
 import { IUnitOfWork } from 'src/modules/common/unit-of-work/iunit-of-work.';
 import { Usuario } from 'src/modules/gestion-usuario/usuario/domain/entities/usuario.entity';
 import { UpdatePrecioDto } from '../../dto/update-precio.dto';
+import { HistorialPrecioProducto } from '../../../historial-precio-producto/domain/entities/historial-precio-producto.entity';
 
 export interface IProductoRepository {
 
@@ -107,4 +108,14 @@ export interface IProductoRepository {
   ): Promise<Producto[]>;
 
   saveMany(entities: Producto[]): Promise<Producto[]>;
+
+  /**
+   * CR-007: guarda los productos y sus registros de historial de precio en una
+   * única transacción. Si algo falla, no queda ni el cambio de precio ni el
+   * historial.
+   */
+  guardarConHistorial(
+    productos: Producto[],
+    historial: HistorialPrecioProducto[],
+  ): Promise<Producto[]>;
 }

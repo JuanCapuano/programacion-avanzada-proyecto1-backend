@@ -27,6 +27,15 @@ import {
 } from '../services/generador-denominacion.service';
 import { ProductoDomainException } from '../exceptions/producto-domain.exception';
 
+/** Valores que definen el precio de un producto en un momento dado (CR-007). */
+export interface DatosPrecioProducto {
+  precio: number;
+  costo: number;
+  costoDolar: number;
+  cotizacionDolar: number;
+  porcentaje: number;
+}
+
 @Entity('producto')
 export class Producto {
   @ApiProperty()
@@ -235,6 +244,55 @@ export class Producto {
   this.precio = precioCalculado;
   return this.precio;
 }
+
+  /**
+   * CR-007: foto de los datos que definen el precio. Se toma antes de un
+   * cambio para poder registrar en el historial el valor anterior.
+   */
+  obtenerDatosPrecio(): DatosPrecioProducto {
+    return {
+      precio: this.precio ?? 0,
+      costo: this.costo ?? 0,
+      costoDolar: this.costoDolar ?? 0,
+      cotizacionDolar: this.cotizacionDolar ?? 0,
+      porcentaje: this.porcentaje ?? 0,
+    };
+  }
+
+  /**
+   * CR-007: el precio no se asigna directamente; solo cambia a través del
+   * costo y/o el porcentaje de margen. Los campos no informados conservan su
+   * valor actual. Siempre recalcula el precio (y lo valida > 0).
+   */
+  actualizarCostoYMargen(cambios: {
+    costo?: number;
+    porcentaje?: number;
+    // SIN USO por ahora: el costo en dólares no participa del precio.
+    // costoDolar?: number;
+    // cotizacionDolar?: number;
+  }): void {
+    if (cambios.costo !== undefined && cambios.costo !== this.costo) {
+      this.costo = cambios.costo;
+      this.fechaCosto = new Date();
+    }
+    // SIN USO por ahora. Se comenta (no se borra) para referencia.
+    //
+    // if (
+    //   cambios.costoDolar !== undefined &&
+    //   cambios.costoDolar !== this.costoDolar
+    // ) {
+    //   this.costoDolar = cambios.costoDolar;
+    //   this.fechaCostoDolar = new Date();
+    // }
+    // if (cambios.cotizacionDolar !== undefined) {
+    //   this.cotizacionDolar = cambios.cotizacionDolar;
+    // }
+    if (cambios.porcentaje !== undefined) {
+      this.porcentaje = cambios.porcentaje;
+    }
+
+    this.calcularPrecio();
+  }
 
   /**
    * Simula el resultado de aplicar un ajuste masivo de precio (CR-006), sin

@@ -41,6 +41,16 @@ export class UpdateProductoDto extends PartialType(
   })
   denominacion?: string;
 
+  /**
+   * CR-007: motivo del cambio de precio. Solo es obligatorio si el costo o el
+   * porcentaje enviados hacen cambiar el precio; se valida en el service,
+   * porque el precio resultante recién se conoce después de recalcularlo.
+   */
+  @IsOptional()
+  @IsString({ message: 'El motivo debe ser una cadena de texto.' })
+  @MaxLength(500, { message: 'El motivo no puede superar los 500 caracteres.' })
+  motivo?: string;
+
   @IsNotEmpty({ message: 'El usuarioUpdatedId es obligatorio.' })
   @IsInt({ message: 'El usuarioUpdatedId debe ser un número entero.' })
   usuarioUpdatedId: number;

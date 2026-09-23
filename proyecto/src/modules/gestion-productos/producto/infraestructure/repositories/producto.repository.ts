@@ -10,6 +10,7 @@ import { DatabaseConnectionException } from 'src/modules/common/exceptions/datab
 import { IUnitOfWork } from 'src/modules/common/unit-of-work/iunit-of-work.';
 import { Usuario } from 'src/modules/gestion-usuario/usuario/domain/entities/usuario.entity';
 import { UpdatePrecioDto } from '../../dto/update-precio.dto';
+import { HistorialPrecioProducto } from '../../../historial-precio-producto/domain/entities/historial-precio-producto.entity';
 
 @Injectable()
 export class ProductoRepository implements IProductoRepository {
@@ -152,6 +153,13 @@ export class ProductoRepository implements IProductoRepository {
 
   async saveMany(entities: Producto[]): Promise<Producto[]> {
     return this.persistenceService.saveMany(entities);
+  }
+
+  async guardarConHistorial(
+    productos: Producto[],
+    historial: HistorialPrecioProducto[],
+  ): Promise<Producto[]> {
+    return this.persistenceService.guardarConHistorial(productos, historial);
   }
 
 
