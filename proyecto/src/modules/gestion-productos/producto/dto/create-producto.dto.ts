@@ -20,10 +20,8 @@ import {
 } from './denominacion.validacion';
 
 export class CreateProductoDto {
-  /**
-   * Opcional (CR-005): si no viene, o viene vacía, el dominio genera la
-   * denominación automática. Si el usuario la escribe, queda como manual.
-   */
+
+  /*Opcional (CR-005): si no viene, o viene vacía, el dominio genera ladenominación automática. Si el usuario la escribe, queda como manual.*/
   @Transform(transformarDenominacionAlta)
   @IsOptional()
   @IsString({ message: 'La denominación debe ser una cadena de texto.' })
@@ -114,6 +112,7 @@ export class CreateProductoDto {
 
   createdAt?: Date;
 
+  @IsOptional()
   @IsEnum(AlicuotaIva, {
     message:
       'tipo debe ser ALICUOTA_0  ALICUOTA_105, ALICUOTA_21, ALICUOTA_27,',

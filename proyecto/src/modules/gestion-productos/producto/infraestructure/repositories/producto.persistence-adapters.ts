@@ -35,63 +35,7 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
     @Inject('UnitOfWork') public readonly uow: IUnitOfWork,
   ) { }
 
-
-  // DEPRECADO: el alta ya no pasa por acá. ProductoService.create() arma la
-  // entidad (presentación, denominación, marca, línea, usuario y precio) y la
-  // persiste con save(). Este método construía la entidad desde el DTO y se
-  // salteaba la lógica de dominio. Se comenta (no se borra) para referencia.
-  //
-  // @Transactional()
-  // async create(
-    /*
-    data: CreateProductoDto,
-    linea: Linea,
-    marca: Marca,
-    usuario: Usuario,
-  ): Promise<Producto> {
-    const repo = this.uow.getRepository(Producto);
-    this.logger.log(`Creando un nuevo p ${this.ENTITY_NAME}`);
-
-    try {
-      // DEBUG: Loggear todos los datos que llegan
-      this.logger.debug('Data recibida:', JSON.stringify(data, null, 2));
-      // Verificar que todos los objetos relacionados existan
-      this.logger.debug('Linea:', linea);
-      this.logger.debug('Marca:', marca);
-      this.logger.debug('Usuario:', usuario);
-
-      const nuevaEntity = repo.create({
-        ...data,
-        linea,
-        marca,
-        usuarioCreated: usuario,
-      });
-
-      this.logger.debug('Entity creada:', nuevaEntity);
-
-      nuevaEntity.calcularPrecio();
-
-      const entityGuardada = await repo.save(nuevaEntity);
-      this.logger.log(`Entity guardada con ID: ${entityGuardada.id}`);
-
-      this.logger.log(
-        `${this.ENTITY_NAME} creado exitosamente con ID: ${entityGuardada.id}`,
-      );
-
-
-      return entityGuardada;
-    } catch (error) {
-      this.logger.error(`Error al crear ${this.ENTITY_NAME}:`, error);
-      this.logger.error('Stack trace:', error);
-      throw new DatabaseConnectionException(
-        'Error al guardar en la base de datos.',
-      );
-    }
-  }
-  */
-
-  // El precio lo calcula ProductoService (entity.calcularPrecio()) antes de
-  // llamar a save(); acá solo se persiste.
+  // El precio lo calcula ProductoService (entity.calcularPrecio()) antes de llamar a save(); acá solo se persiste.
   async save(entity: Producto): Promise<Producto> {
     try {
       return await this.repository.save(entity);
@@ -110,8 +54,6 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
         .where('producto.id = :id', { id })
         .andWhere('producto.deletedAt IS NULL')
         .getOne();
-
-      this.logger.warn(`rrr: ${entity}.`);
       if (!entity) {
         throw new EntityNotFoundException('Entidad no encontrada.');
       }
@@ -139,8 +81,6 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
         .where('producto.id = :id', { id })
 
         .getOne();
-
-      this.logger.warn(`: ${entity}.`);
       if (!entity) {
         throw new EntityNotFoundException('Entidad no encontrada.');
       }
@@ -181,54 +121,6 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
     }
   }
 
-  // DEPRECADO: la edición ya no pasa por acá. ProductoService.update() carga la
-  // entidad, aplica los cambios (incluida la denominación por dominio) y la
-  // persiste con save(). Se comenta (no se borra) para referencia.
-  //
-  // @Transactional()
-  // async update(
-    /*
-    id: number,
-    data: UpdateProductoDto,
-    linea: Linea,
-    marca: Marca,
-
-    usuario: Usuario,
-  ): Promise<Producto> {
-    const repo = this.uow.getRepository(Producto);
-    try {
-      const entity = await this.findOne(id);
-
-      if (!entity) {
-        throw new NotFoundException(`EL prodcuto con ID ${id} no encontrada`);
-      }
-      const {
-
-        ...dataSinItems
-      } = data;
-
-      Object.assign(entity, dataSinItems, {
-        linea,
-        marca,
-      });
-
-      entity.usuarioUpdated = usuario;
-
-      entity.calcularPrecio();
-
-      const entityActualizada = await repo.save(entity);
-
-
-      return entityActualizada;
-    } catch (error) {
-      this.logger.warn(`Items para eliminar: )}`);
-
-      throw new DatabaseConnectionException(error);
-    }
-  }
-  */
-
-
   async updateEntity(uow: IUnitOfWork, producto: Producto): Promise<Producto> {
     const repo = uow.getRepository(Producto);
     return await repo.save(producto);
@@ -264,7 +156,6 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
     skip: number,
     take: number,
   ): Promise<{ data: Producto[]; total: number }> {
-    this.logger.warn(`llega`);
     const query = this.repository
       .createQueryBuilder('producto')
       .leftJoinAndSelect('producto.marca', 'marca')
@@ -312,8 +203,6 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
       query.andWhere('linea.id = :linea_id', { linea_id });
     }
 
-    this.logger.warn(`conStock llega como: ${conStock} (${typeof conStock})`);
-
     if (conStock) {
       query.andWhere('producto.stock > 0');
     }
@@ -323,7 +212,6 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
     query.skip(skip).take(take);
 
     const [data, total] = await query.getManyAndCount();
-    this.logger.warn(`conStock llega como 1: ${data}`);
     return {
       data,
       total,
@@ -336,7 +224,6 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
     skip: any,
     take: number,
   ): Promise<{ data: Producto[]; total: number }> {
-    this.logger.warn(`llega`);
 
     const query = this.repository
       .createQueryBuilder('producto')
@@ -371,8 +258,6 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
 
     const [data, total] = await query.getManyAndCount();
 
-    this.logger.warn(`Resultados: ${data.length} encontrados`);
-
     return { data, total };
   }
 
@@ -405,30 +290,6 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
     return existe; // true si existe otro con el mismo código
   }
 
-  // DEPRECADO: el cálculo de precio ahora vive en Producto.calcularPrecio()
-  // y se invoca desde el PersistenceAdapter antes de guardar.
-  // Se comenta (no se borra) para referencia, ver CLAUDE.md.
-  //
-  // @Transactional()
-  // async actualizarPrecio(id: number, dto: UpdatePrecioDto, usuario: Usuario) {
-  //   const repo = this.uow.getRepository(Producto);
-  //   const entity = await repo.findOne({ where: { id } });
-  //
-  //   if (!entity) {
-  //     throw new NotFoundException('Producto no encontrado');
-  //   }
-  //
-  //   ProductoMapper.mapPrecios(entity, dto, usuario);
-  //
-  //   await repo.save(entity);
-  //
-  // }
-
-  /**
-   * Trae los productos del alcance pedido (una línea puntual o todos), sin
-   * decidir nada sobre precios: eso es responsabilidad de Producto
-   * (aplicarAjustePrecio / simularAjustePrecio), invocada desde el service.
-   */
   async findParaAjusteMasivo(
     alcance: 'linea' | 'global',
     lineaId?: number,
@@ -501,7 +362,7 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
       return count > 0;
     } catch (error) {
       this.logger.error(
-        `Error verificando existencia de denominación:}`,
+        `Error verificando existencia de denominación: `,
       );
       throw new DatabaseConnectionException(
         'Error al conectar con la base de datos.',
@@ -557,7 +418,6 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
     return count > 0;
   }
 
-  // En ProductoService
   async findByIds(ids: number[]): Promise<Producto[]> {
 
     const uniqueIds = [...new Set(ids)];
@@ -571,7 +431,6 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
       .where('producto.id IN (:...ids)', { ids: uniqueIds })
       .getMany();
   }
-
 
   async existsByCodigoProveedor(codigoProveedor: string, excludeId: number): Promise<boolean> {
     try {
@@ -595,6 +454,5 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
       );
     }
   }
-
 }
 

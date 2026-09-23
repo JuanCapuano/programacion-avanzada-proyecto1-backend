@@ -67,30 +67,8 @@ export class ProductoController {
     this.logger.log('Actualizando precios de forma masiva...');
     return this.service.actualizarPreciosMasivo(dto);
   }
-// Hay dos metodos iguales no cual es el que va, o si van los dos hay que cambiar el nombre
-/*@Patch('cambio-precios-masivo')
-@Roles('Root', 'Administrador', 'Empleado')
-async actualizarPreciosMasivo(@Body() dto: GuardarCambioPreciosMasivoDto) {
-  return this.service.actualizarPreciosMasivo(
-    dto.items.map((item) => ({
-      productoId: item.productoId,
-      dto: {
-        ...item,
-        motivo: dto.motivo,
-        usuarioId: dto.usuarioId,
-      },
-    })),
-    dto.motivo,
-    dto.usuarioId,
-  );*/
 
-
-
-  /**
-   * CR-006 (HU3): previsualiza el resultado de la actualización masiva de
-   * precios sin persistir nada, para que el frontend lo muestre antes de
-   * que el usuario confirme.
-   */
+  /*CR-006 (HU3): previsualiza el resultado de la actualización masiva de precios sin persistir nada, para que el frontend lo muestre antes de que el usuario confirme.*/
   @Post('precios/actualizacion-masiva/preview')
   @Roles('Root', 'Administrador')
   @ApiOkResponse({ type: PreviewActualizacionMasivaPrecioDto, isArray: true })
@@ -184,13 +162,7 @@ async actualizarPreciosMasivo(@Body() dto: GuardarCambioPreciosMasivoDto) {
     );
   }
 
-  /**
-   * US-10: devuelve la denominación automática que tendría un producto con
-   * esta marca, línea y presentación, sin guardar nada. El front la usa para
-   * mostrar el nombre mientras el usuario completa el formulario.
-   *
-   * Declarada antes de @Get(':id') para que nunca la capture esa ruta.
-   */
+  /*US-10: devuelve la denominación automática que tendría un producto con esta marca, línea y presentación, sin guardar nada. El front la usa para mostrar el nombre mientras el usuario completa el formulario. Declarada antes de @Get(':id') para que nunca la capture esa ruta.*/
   @Get('denominacion/previsualizar')
   @Roles('Root', 'Administrador', 'Empleado', 'Repartidor', 'Repositor')
   @ApiOkResponse({ type: DenominacionPrevisualizadaDto })
@@ -234,10 +206,7 @@ async actualizarPreciosMasivo(@Body() dto: GuardarCambioPreciosMasivoDto) {
   }
 
 
-  /**
-   * US-11: descarta la denominación manual y vuelve a generarla a partir de
-   * marca, línea y presentación. El producto queda en modo automático.
-   */
+  /*US-11: descarta la denominación manual y vuelve a generarla a partir demarca, línea y presentación. El producto queda en modo automático. */
   @Patch(':id/restaurar-denominacion')
   @Roles('Root', 'Administrador', 'Empleado')
   restaurarDenominacion(
@@ -262,11 +231,6 @@ async actualizarPreciosMasivo(@Body() dto: GuardarCambioPreciosMasivoDto) {
     return this.service.remove(id, usuarioId);
   }
 
-  /**
-   * PATCH /producto/:id/precio
-   * Actualiza el precio de un producto individual y registra el cambio en el
-   * historial si el precio efectivamente cambió. Rechaza si precio resultante <= 0.
-   */
   @Patch(':id/precio')
   @Roles('Root', 'Administrador', 'Empleado')
   actualizarPrecio(
