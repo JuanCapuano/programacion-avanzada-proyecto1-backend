@@ -1,3 +1,4 @@
+import { FiltrosCatalogo } from './filtros-catalogo';
 import { Linea } from '../../../linea/domain/entities/linea.entity';
 import { Marca } from '../../../marca/domain/entities/marca.entity';
 import { CreateProductoDto } from '../../dto/create-producto.dto';
@@ -19,6 +20,8 @@ export interface IProductoRepository {
   findOne(id: number): Promise<Producto | null>;
   findByIdConAuditoria(id: number): Promise<Producto | null>;
   findByDenominacion(denominacion: string): Promise<Producto | null>;
+
+  findByCatalogo(filtros: FiltrosCatalogo): Promise<{ data: Producto[]; total: number }>;
 
   findBy(
     denominacion: string,

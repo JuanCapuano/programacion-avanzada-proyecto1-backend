@@ -1,3 +1,4 @@
+import { FiltrosCatalogo } from '../../domain/interfaces/filtros-catalogo';
 import {
   forwardRef,
   Inject,
@@ -124,6 +125,11 @@ export class ProductoService {
     };
   }
 
+
+  async findByCatalogo(filtros: FiltrosCatalogo) {
+    const result = await this.repository.findByCatalogo(filtros);
+    return { data: result.data.map(ProductoMapper.toBusquedaDto), total: result.total };
+  }
 
   async findBy(
     denominacion: string,

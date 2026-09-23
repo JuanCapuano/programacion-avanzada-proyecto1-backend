@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { SearchCatalogoDto } from '../../dto/search-catalogo.dto';
 import { CreateProductoDto } from '../../dto/create-producto.dto';
 import { UpdateProductoDto } from '../../dto/update-producto.dto';
 import { NormalizeDenominacionPipe } from 'src/modules/common/pipes/normalize-denominations.pipe';
@@ -95,6 +96,12 @@ export class ProductoController {
   async searchRapido(@Query() dto: SearchProductoRapidoDto) {
     const { exacto, codigo, skip, take } = dto;
     return this.service.findByRapido(codigo, exacto, skip, take);
+  }
+
+  @Get('search-catalogo')
+  @Roles('Root', 'Administrador', 'Empleado', 'Vendedor', 'Repartidor', 'Repositor')
+  searchCatalogo(@Query() dto: SearchCatalogoDto) {
+    return this.service.findByCatalogo(dto);
   }
 
   @Get('search-by')
