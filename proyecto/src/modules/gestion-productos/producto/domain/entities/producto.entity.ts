@@ -18,6 +18,23 @@ import { MonetarioColumn } from 'src/modules/common/decorators/monetario-column.
 import { CantidadColumn } from 'src/modules/common/decorators/cantidad-column.decorator';
 import { PorcentajeColumn } from 'src/modules/common/decorators/porcentaje-column.decorator';
 import { Proveedor } from 'src/modules/organizacion/proveedor/domain/entities/proveedor.entity';
+import { OrigenDenominacion } from '../enums/origen-denominacion.enum';
+import { UnidadMedida } from '../enums/unidad-medida.enum';
+import { Presentacion } from '../value-objects/presentacion.vo';
+import {
+  ComponentesDenominacion,
+  GeneradorDenominacion,
+} from '../services/generador-denominacion.service';
+import { ProductoDomainException } from '../exceptions/producto-domain.exception';
+
+/** Valores que definen el precio de un producto en un momento dado (CR-007). */
+export interface DatosPrecioProducto {
+  precio: number;
+  costo: number;
+  costoDolar: number;
+  cotizacionDolar: number;
+  porcentaje: number;
+}
 
 @Entity('producto')
 export class Producto {
@@ -28,6 +45,38 @@ export class Producto {
   @ApiProperty()
   @Column({ type: 'text' })
   denominacion: string;
+
+  // ========== DENOMINACIÓN (CR-005) ==========
+  /**
+   * Los productos anteriores al CR-005 quedan como MANUAL: sus nombres los
+   * escribió una persona y no deben regenerarse sin que alguien lo pida.
+   */
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: OrigenDenominacion.MANUAL,
+  })
+  origenDenominacion: OrigenDenominacion;
+
+  // ========== PRESENTACIÓN (CR-002) ==========
+  // Columnas de persistencia del Value Object Presentacion. No se acceden
+  // directamente: usar obtenerPresentacion() / asignarPresentacion().
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: true,
+    transformer: {
+      to: (value?: number | null): string | null =>
+        value === null || value === undefined ? null : value.toString(),
+      from: (value?: string | null): number | null =>
+        value === null || value === undefined ? null : Number(value),
+    },
+  })
+  presentacionCantidad?: number | null;
+
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  presentacionUnidad?: UnidadMedida | null;
 
   @Index()
   @Column({ type: 'varchar', length: 255, nullable: true })
@@ -172,4 +221,267 @@ export class Producto {
 
   @Column({ type: 'text', nullable: true })
   codigoReferencia?: string | null;
+
+  /**
+   * Calcula el precio de venta a partir del costo y el porcentaje de margen:
+   * precio = costo + (costo * porcentaje / 100).
+   * Deja el resultado asignado en `this.precio` y lo devuelve.
+   */
+
+
+  calcularPrecio(): number {
+  const costo = this.costo ?? 0;
+  const porcentaje = this.porcentaje ?? 0;
+
+  const precioCalculado = costo + (costo * porcentaje) / 100;
+
+  if (precioCalculado <= 0) {
+    throw new ProductoDomainException(
+      `El precio calculado (${precioCalculado}) debe ser mayor a 0. Revisá el costo y el porcentaje cargados.`,
+    );
+  }
+
+  this.precio = precioCalculado;
+  return this.precio;
+}
+
+  /**
+   * CR-007: foto de los datos que definen el precio. Se toma antes de un
+   * cambio para poder registrar en el historial el valor anterior.
+   */
+  obtenerDatosPrecio(): DatosPrecioProducto {
+    return {
+      precio: this.precio ?? 0,
+      costo: this.costo ?? 0,
+      costoDolar: this.costoDolar ?? 0,
+      cotizacionDolar: this.cotizacionDolar ?? 0,
+      porcentaje: this.porcentaje ?? 0,
+    };
+  }
+
+  /**
+   * CR-007: el precio no se asigna directamente; solo cambia a través del
+   * costo y/o el porcentaje de margen. Los campos no informados conservan su
+   * valor actual. Siempre recalcula el precio (y lo valida > 0).
+   */
+  actualizarCostoYMargen(cambios: {
+    costo?: number;
+    porcentaje?: number;
+    // SIN USO por ahora: el costo en dólares no participa del precio.
+    // costoDolar?: number;
+    // cotizacionDolar?: number;
+  }): void {
+    if (cambios.costo !== undefined && cambios.costo !== this.costo) {
+      this.costo = cambios.costo;
+      this.fechaCosto = new Date();
+    }
+    // SIN USO por ahora. Se comenta (no se borra) para referencia.
+    //
+    // if (
+    //   cambios.costoDolar !== undefined &&
+    //   cambios.costoDolar !== this.costoDolar
+    // ) {
+    //   this.costoDolar = cambios.costoDolar;
+    //   this.fechaCostoDolar = new Date();
+    // }
+    // if (cambios.cotizacionDolar !== undefined) {
+    //   this.cotizacionDolar = cambios.cotizacionDolar;
+    // }
+    if (cambios.porcentaje !== undefined) {
+      this.porcentaje = cambios.porcentaje;
+    }
+
+    this.calcularPrecio();
+  }
+
+  /**
+   * Simula el resultado de aplicar un ajuste masivo de precio (CR-006), sin
+   * mutar el estado de la entidad. Quien llama decide si aplica el resultado.
+   */
+  simularAjustePrecio(
+    tipoAjuste: 'porcentaje' | 'monto',
+    valor: number,
+  ): { precioResultante: number; porcentajeResultante: number; valido: boolean } {
+    const precio = this.precio ?? 0;
+    const costo = this.costo ?? 0;
+
+    const precioResultante =
+      tipoAjuste === 'porcentaje' ? precio * (1 + valor / 100) : precio + valor;
+
+    const porcentajeResultante = (precioResultante / costo - 1) * 100;
+
+    return {
+      precioResultante,
+      porcentajeResultante,
+      valido:
+      precioResultante > 0 &&
+      porcentajeResultante >= -99.99
+    };
+  }
+
+  /**
+   * Aplica un ajuste masivo de precio (CR-006), mutando la entidad. Reutiliza
+   * el mismo cálculo que simularAjustePrecio(); si el resultado no es válido,
+   * rechaza el ajuste sin modificar el estado.
+   */
+  aplicarAjustePrecio(tipoAjuste: 'porcentaje' | 'monto', valor: number): void {
+    const { precioResultante, porcentajeResultante, valido } =
+      this.simularAjustePrecio(tipoAjuste, valor);
+
+    if (!valido) {
+      throw new ProductoDomainException(
+        `La actualización dejaría el precio del producto "${this.denominacion}" en un valor inválido (${precioResultante}). Se rechaza la operación completa y ningún producto fue modificado.`,
+      );
+    }
+    this.porcentaje = porcentajeResultante;
+    this.calcularPrecio(); // el precio se deriva de costo + margen
+  }
+
+  // =====================================================================
+  // Comportamiento de dominio
+  // =====================================================================
+
+  // ---------- Presentación (CR-002) ----------
+
+  /** Reconstruye el Value Object a partir de sus columnas de persistencia. */
+  obtenerPresentacion(): Presentacion | null {
+    if (
+      this.presentacionCantidad === null ||
+      this.presentacionCantidad === undefined ||
+      !this.presentacionUnidad
+    ) {
+      return null;
+    }
+    return Presentacion.crear(
+      this.presentacionCantidad,
+      this.presentacionUnidad,
+    );
+  }
+
+  asignarPresentacion(presentacion: Presentacion | null): void {
+    this.presentacionCantidad = presentacion?.cantidad ?? null;
+    this.presentacionUnidad = presentacion?.unidad ?? null;
+  }
+
+  // ---------- Denominación (CR-005) ----------
+
+  /**
+   * Cualquier valor distinto de AUTOMATICA se trata como manual: ante la
+   * duda, no se pisa un nombre escrito por una persona.
+   */
+  esDenominacionManual(): boolean {
+    return this.origenDenominacion !== OrigenDenominacion.AUTOMATICA;
+  }
+
+  /**
+   * US-10 / US-11: genera la denominación a partir de marca, línea y la
+   * presentación del propio producto, y deja el producto en modo automático.
+   * Se usa en el alta y en la acción "restaurar automática".
+   */
+  generarDenominacionAutomatica(
+    generador: GeneradorDenominacion,
+    componentes: Omit<ComponentesDenominacion, 'presentacion'>,
+  ): void {
+    this.denominacion = generador.generar({
+      ...componentes,
+      presentacion: this.obtenerPresentacion(),
+    });
+    this.origenDenominacion = OrigenDenominacion.AUTOMATICA;
+  }
+
+  /**
+   * US-11: al cambiar marca, línea o presentación, la denominación se
+   * regenera solo si es automática. Una denominación manual no se sobrescribe.
+   *
+   * @returns true si la denominación fue regenerada.
+   */
+  sincronizarDenominacion(
+    generador: GeneradorDenominacion,
+    componentes: Omit<ComponentesDenominacion, 'presentacion'>,
+  ): boolean {
+    if (this.esDenominacionManual()) {
+      return false;
+    }
+    this.generarDenominacionAutomatica(generador, componentes);
+    return true;
+  }
+
+  /**
+   * US-11: el usuario reemplaza la denominación generada por un texto propio.
+   * El producto pasa a modo manual. Si el texto es inválido, el producto
+   * queda exactamente como estaba.
+   */
+  renombrarManualmente(denominacion: string): void {
+    const normalizada = Producto.normalizarDenominacion(denominacion);
+
+    if (!normalizada) {
+      throw new ProductoDomainException(
+        'La denominación no puede estar vacía.',
+      );
+    }
+    if (normalizada.length > GeneradorDenominacion.LONGITUD_MAXIMA) {
+      throw new ProductoDomainException(
+        `La denominación no puede superar los ${GeneradorDenominacion.LONGITUD_MAXIMA} caracteres.`,
+      );
+    }
+
+    this.denominacion = normalizada;
+    this.origenDenominacion = OrigenDenominacion.MANUAL;
+  }
+
+  /**
+   * Alta (US-10 / US-11): decide cómo nace la denominación.
+   * - Sin texto del usuario  → se genera y el producto queda AUTOMATICA.
+   * - Con texto del usuario  → se respeta y el producto queda MANUAL.
+   *
+   * Solo `undefined` significa "no ingresó nada". Un texto vacío es un
+   * intento de nombre inválido y se rechaza.
+   */
+  inicializarDenominacion(
+    generador: GeneradorDenominacion,
+    componentes: Omit<ComponentesDenominacion, 'presentacion'>,
+    denominacionIngresada?: string,
+  ): void {
+    if (denominacionIngresada === undefined) {
+      this.generarDenominacionAutomatica(generador, componentes);
+      return;
+    }
+    this.renombrarManualmente(denominacionIngresada);
+  }
+
+  /**
+   * Edición (US-11): decide qué pasa con la denominación al guardar cambios.
+   * - Texto distinto del actual → el usuario la editó: pasa a MANUAL.
+   * - Sin texto, o igual al actual → no hubo edición del nombre: se
+   *   sincroniza (se regenera solo si es AUTOMATICA).
+   *
+   * Comparar contra el valor actual es necesario porque los formularios de
+   * edición reenvían todos los campos, incluido el nombre sin cambios.
+   *
+   * @returns true si la denominación cambió.
+   */
+  actualizarDenominacion(
+    generador: GeneradorDenominacion,
+    componentes: Omit<ComponentesDenominacion, 'presentacion'>,
+    denominacionIngresada?: string,
+  ): boolean {
+    const anterior = this.denominacion;
+
+    const fueEditada =
+      denominacionIngresada !== undefined &&
+      Producto.normalizarDenominacion(denominacionIngresada) !== anterior;
+
+    if (fueEditada) {
+      this.renombrarManualmente(denominacionIngresada);
+    } else {
+      this.sincronizarDenominacion(generador, componentes);
+    }
+
+    return this.denominacion !== anterior;
+  }
+
+  /** Misma normalización que el resto del catálogo: minúsculas y espacios simples. */
+  private static normalizarDenominacion(texto: string | null | undefined): string {
+    return (texto ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+  }
 }

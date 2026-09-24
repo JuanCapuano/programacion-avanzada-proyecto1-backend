@@ -7,15 +7,23 @@ import { UpdateProductoDto } from '../../dto/update-producto.dto';
 import { IUnitOfWork } from 'src/modules/common/unit-of-work/iunit-of-work.';
 import { Usuario } from 'src/modules/gestion-usuario/usuario/domain/entities/usuario.entity';
 import { UpdatePrecioDto } from '../../dto/update-precio.dto';
+import { HistorialPrecioProducto } from '../../../historial-precio-producto/domain/entities/historial-precio-producto.entity';
 
 export interface IProductoRepository {
 
-  create(
-    data: CreateProductoDto,
-    linea: Linea,
-    marca: Marca,
-    usuario: Usuario,
+  save (
+    entity: Producto
   ): Promise<Producto>;
+  
+  // DEPRECADO: el alta la resuelve ProductoService armando la entidad y
+  // llamando a save(). Se comenta (no se borra) para referencia.
+  //
+  // create(
+  //   data: CreateProductoDto,
+  //   linea: Linea,
+  //   marca: Marca,
+  //   usuario: Usuario,
+  // ): Promise<Producto>;
 
   findOne(id: number): Promise<Producto | null>;
   findByIdConAuditoria(id: number): Promise<Producto | null>;
@@ -46,21 +54,28 @@ export interface IProductoRepository {
 
   findByIdWithoutRelations(id: number): Promise<Producto | null> | undefined;
 
-  update(
-    id: number,
-    data: UpdateProductoDto,
-    linea: Linea,
-    marca: Marca,
-    usuario: Usuario,
-  ): Promise<Producto>;
+  // DEPRECADO: la edición la resuelve ProductoService y persiste con save().
+  // Se comenta (no se borra) para referencia.
+  //
+  // update(
+  //   id: number,
+  //   data: UpdateProductoDto,
+  //   linea: Linea,
+  //   marca: Marca,
+  //   usuario: Usuario,
+  // ): Promise<Producto>;
 
   updateEntity(uow: IUnitOfWork, data: Producto): Promise<Producto>;
 
-  actualizarPrecio(
-    id: number,
-    dto: UpdatePrecioDto,
-    usuario: Usuario,
-  ): Promise<void>;
+  // DEPRECADO: el cálculo de precio ahora vive en Producto.calcularPrecio()
+  // y se invoca desde el PersistenceAdapter antes de guardar.
+  // Se comenta (no se borra) para referencia, ver CLAUDE.md.
+  //
+  // actualizarPrecio(
+  //   id: number,
+  //   dto: UpdatePrecioDto,
+  //   usuario: Usuario,
+  // ): Promise<void>;
   remove(data: Producto, usuario: Usuario): Promise<Producto>;
 
   isCodigoProveedorDuplicado(
@@ -83,4 +98,27 @@ export interface IProductoRepository {
   existsProductosActivosByLinea(lineaId: number): Promise<boolean>;
 
   findByIds(ids: number[]): Promise<Producto[]>;
+
+  /**
+   * Trae los productos del alcance dado (línea puntual o todos), sin aplicar
+   * ni calcular ningún ajuste: la decisión de qué es válido y la mutación de
+   * precio/porcentaje quedan en Producto.aplicarAjustePrecio() /
+   * simularAjustePrecio(), invocadas desde la capa de aplicación.
+   */
+  findParaAjusteMasivo(
+    alcance: 'linea' | 'global',
+    lineaId?: number,
+  ): Promise<Producto[]>;
+
+  saveMany(entities: Producto[]): Promise<Producto[]>;
+
+  /**
+   * CR-007: guarda los productos y sus registros de historial de precio en una
+   * única transacción. Si algo falla, no queda ni el cambio de precio ni el
+   * historial.
+   */
+  guardarConHistorial(
+    productos: Producto[],
+    historial: HistorialPrecioProducto[],
+  ): Promise<Producto[]>;
 }
