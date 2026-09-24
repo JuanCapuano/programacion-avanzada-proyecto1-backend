@@ -9,6 +9,7 @@ import { ProductoRelatedEntitiesValidator } from '../../infraestructure/validato
 import { ProductoUniquenessValidator } from '../../infraestructure/validators/producto-uniqueness.validator.ts';
 import { UsuarioValidator } from 'src/modules/common/utils/validation/usuario-validator';
 import { ProductoDeletePolicy } from '../policies/producto-delete.policy';
+import { ProductoPersistenceAdapter } from '../../infraestructure/repositories/producto.persistence-adapters';
 import { LineaService } from 'src/modules/gestion-productos/linea/application/services/linea.service';
 import { MarcaService } from 'src/modules/gestion-productos/marca/application/services/marca.service';
 import { ProveedorService } from 'src/modules/organizacion/proveedor/application/services/proveedor.service';
@@ -18,6 +19,7 @@ import { Producto } from '../../domain/entities/producto.entity';
 import { OrigenDenominacion } from '../../domain/enums/origen-denominacion.enum';
 import { UnidadMedida } from '../../domain/enums/unidad-medida.enum';
 import { ProductoDomainException } from '../../domain/exceptions/producto-domain.exception';
+import { HistorialPrecioService } from 'src/modules/gestion-productos/historial-precio-producto/application/services/historial-precio.service';
 
 /**
  * Tests de la capa de aplicación del CR-005: verifican que ProductoService
@@ -41,6 +43,8 @@ describe('ProductoService — denominación automática (CR-005)', () => {
     utilizaStockMinimo: false,
     utilizaPack: false,
     usuarioCreatedId: 9,
+    // El precio se deriva del costo: sin costo, calcularPrecio() lo rechaza.
+    costo: 1000,
     presentacionCantidad: 1.5,
     presentacionUnidad: UnidadMedida.LITRO,
   };
@@ -82,6 +86,12 @@ describe('ProductoService — denominación automática (CR-005)', () => {
         { provide: ProveedorService, useValue: {} },
         { provide: UsuarioService, useValue: { findOne: async () => ({ id: 9 }) } },
         { provide: ProductoDeletePolicy, useValue: {} },
+        {
+          // CR-007: el historial se prueba en su propia feature BDD.
+          provide: HistorialPrecioService,
+          useValue: { registrarSiCambio: jest.fn() },
+        },
+        { provide: ProductoPersistenceAdapter, useValue: {} },
       ],
     }).compile();
 
@@ -91,7 +101,14 @@ describe('ProductoService — denominación automática (CR-005)', () => {
   /** Producto persistido con denominación automática, como lo devolvería la BD. */
   function productoExistenteAutomatico(): Producto {
     const producto = new Producto();
-    Object.assign(producto, { id: 5, marcaId: 1, lineaId: 2, alicuotaIva: 21 });
+    Object.assign(producto, {
+      id: 5,
+      marcaId: 1,
+      lineaId: 2,
+      alicuotaIva: 21,
+      costo: 1000,
+      porcentaje: 15,
+    });
     producto.generarDenominacionAutomatica(new GeneradorDenominacion(), {
       marca: marca.denominacion,
       linea: linea.denominacion,

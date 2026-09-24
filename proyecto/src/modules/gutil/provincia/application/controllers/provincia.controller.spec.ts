@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProvinciaController } from './provincia.controller';
-import { ProvinciaService } from '../services/provincia.serviceervice';
+import { ProvinciaService } from '../services/provincia.service';
+import { AuthGuard } from 'src/modules/gestion-usuario/auth/auth.guard';
 
 describe('ProvinciaController', () => {
   let controller: ProvinciaController;
@@ -8,8 +9,11 @@ describe('ProvinciaController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProvinciaController],
-      providers: [ProvinciaService],
-    }).compile();
+      providers: [{ provide: ProvinciaService, useValue: {} }],
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<ProvinciaController>(ProvinciaController);
   });

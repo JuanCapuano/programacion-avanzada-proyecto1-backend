@@ -11,6 +11,8 @@ import { MarcaService } from 'src/modules/gestion-productos/marca/application/se
 import { ProveedorService } from 'src/modules/organizacion/proveedor/application/services/proveedor.service';
 import { UsuarioService } from 'src/modules/gestion-usuario/usuario/application/services/usuario.service';
 import { GeneradorDenominacion } from '../../domain/services/generador-denominacion.service';
+import { HistorialPrecioService } from 'src/modules/gestion-productos/historial-precio-producto/application/services/historial-precio.service';
+import { ProductoPersistenceAdapter } from '../../infraestructure/repositories/producto.persistence-adapters';
 
 describe('ProductoService', () => {
   let service: ProductoService;
@@ -31,6 +33,8 @@ describe('ProductoService', () => {
         { provide: UsuarioValidator, useValue: {} },
         { provide: ProductoDeletePolicy, useValue: {} },
         { provide: GeneradorDenominacion, useValue: {} },
+        { provide: HistorialPrecioService, useValue: {} },
+        { provide: ProductoPersistenceAdapter, useValue: {} },
       ],
     }).compile();
 

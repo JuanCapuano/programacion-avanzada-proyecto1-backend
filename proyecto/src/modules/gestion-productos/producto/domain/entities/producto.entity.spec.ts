@@ -279,21 +279,26 @@ describe('Producto (Aggregate Root) — denominación y presentación', () => {
       expect(producto.precio).toBe(1250);
     });
 
-    it('costo 0 da precio 0', () => {
+    // CR-001: un precio que queda en 0 se rechaza, no se guarda.
+    // (Estos dos tests esperaban precio 0; se corrigieron para reflejar la
+    // regla implementada y el criterio de aceptación de la US-1.)
+    it('costo 0 se rechaza porque dejaría el precio en 0', () => {
       const producto = new Producto();
       producto.costo = 0;
       producto.porcentaje = 15;
 
-      expect(producto.calcularPrecio()).toBe(0);
-      expect(producto.precio).toBe(0);
+      expect(() => producto.calcularPrecio()).toThrow(ProductoDomainException);
+      expect(producto.precio).toBeUndefined();
     });
 
-    it('sin costo da precio 0', () => {
+    it('sin costo se rechaza porque dejaría el precio en 0', () => {
       const producto = new Producto();
       producto.porcentaje = 15;
 
-      expect(producto.calcularPrecio()).toBe(0);
-      expect(producto.precio).toBe(0);
+      expect(() => producto.calcularPrecio()).toThrow(
+        'El precio calculado (0) debe ser mayor a 0. Revisá el costo y el porcentaje cargados.',
+      );
+      expect(producto.precio).toBeUndefined();
     });
 
     it('sin porcentaje el margen es 0% y el precio es igual al costo', () => {
