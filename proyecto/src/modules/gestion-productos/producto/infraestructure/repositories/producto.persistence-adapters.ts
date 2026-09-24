@@ -1,9 +1,5 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { FiltrosCatalogo } from '../../domain/interfaces/filtros-catalogo';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transactional } from 'src/modules/common/decorators/transactional.decoratos';
 import { DatabaseConnectionException } from 'src/modules/common/exceptions/database-connection.exception';
@@ -43,7 +39,7 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
       this.logger.error(`Error al guardar ${this.ENTITY_NAME}:`, error);
       throw new DatabaseConnectionException('Error al guardar en la base de datos.');
     }
-  } 
+  }
 
   async findOne(id: number): Promise<Producto | null> {
     try {
@@ -142,6 +138,41 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
         'Error al guardar en la base de datos.',
       );
     }
+  }
+
+  async findByCatalogo(filtros: FiltrosCatalogo): Promise<{ data: Producto[]; total: number }> {
+    const query = this.repository.createQueryBuilder('producto')
+      .leftJoinAndSelect('producto.marca', 'marca')
+      .leftJoinAndSelect('producto.linea', 'linea')
+      .leftJoin('linea.superLinea', 'superLinea')
+      .where('producto.deletedAt IS NULL');
+
+    const campos = {
+      denominacion: 'producto.denominacion',
+      linea: 'linea.denominacion',
+      superLinea: 'superLinea.denominacion',
+    } as const;
+    for (const clave of Object.keys(campos) as (keyof typeof campos)[]) {
+      const texto = filtros[clave]?.trim();
+      if (texto) {
+        // Los comodines escritos por el usuario se buscan como caracteres literales.
+        const literal = texto.replace(/[!%_]/g, (caracter) => `!${caracter}`);
+        query.andWhere(`UPPER(${campos[clave]}) LIKE UPPER(:${clave}) ESCAPE '!'`, {
+          [clave]: `%${literal}%`,
+        });
+      }
+    }
+    const texto = filtros.texto?.trim();
+    if (texto) {
+      const literal = texto.replace(/[!%_]/g, (caracter) => `!${caracter}`);
+      query.andWhere(`(${Object.values(campos).map(
+        (campo) => `UPPER(${campo}) LIKE UPPER(:texto) ESCAPE '!'`,
+      ).join(' OR ')})`, { texto: `%${literal}%` });
+    }
+    const [data, total] = await query.orderBy('producto.denominacion', 'ASC')
+      .addOrderBy('producto.id', 'ASC')
+      .skip(filtros.skip).take(filtros.take).getManyAndCount();
+    return { data, total };
   }
 
   async findBy(

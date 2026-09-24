@@ -194,3 +194,34 @@ Todos los endpoints tienen el prefijo `/api`.
 - **DTOs**: validados con `class-validator`, con whitelist estricto
 - **Excepciones**: manejadas por filtro global (`GlobalExceptionFilter`)
 - **Body limit**: 50MB para JSON y URL-encoded
+
+
+## CR-004: búsqueda de productos por catálogo
+
+Base: `feature/CR-003`. La relación utilizada es Producto → Línea → SuperLínea.
+`GET /api/producto/search-catalogo` requiere la misma autenticación y roles que la consulta de productos.
+El campo único de la interfaz envía `texto`: busca por Denominación, Línea o SuperLínea con OR.
+Se mantienen los filtros independientes para compatibilidad.
+Parámetros opcionales: `texto`, `denominacion`, `linea`, `superLinea` (texto, hasta 255 caracteres).
+Se combinan con AND; cada uno busca coincidencias parciales, ignora mayúsculas y recorta espacios exteriores.
+Los campos vacíos se ignoran. `%`, `_` y `!` se interpretan literalmente.
+No se impone una política adicional de tildes: depende de la collation MySQL configurada.
+Paginación: `skip=0`, `take=10` por defecto; `take` entre 1 y 100. Respuesta `{ data, total }`.
+Los productos eliminados no se devuelven; los productos sin Línea se pueden encontrar por Denominación.
+La consulta anterior `search-by` y la búsqueda rápida conservan sus contratos.
+La lógica de consulta vive en el adaptador de persistencia; no se agregan reglas ni entidades de negocio.
+
+Prueba de integración local (API encendida, seeds iniciales cargados, `.env` apuntando a `proyecto_cr004`):
+
+```powershell
+cd proyecto
+node --test test/cr004.integration.cjs
+```
+
+Cubre 12 casos (incluido el campo único con OR): cada campo, AND, incompatibilidades, blancos, mayúsculas, comodines literales,
+paginación, validaciones, autenticación y regresión de la consulta anterior. Los fixtures se eliminan al terminar.
+
+Para el entorno Windows ya inicializado puede configurarse `DB_SYNCHRONIZE=false` en `.env`:
+evita que TypeORM intente recrear `usuarioRol` como `usuariorol` al reiniciar.
+Sin esa variable se conserva la sincronización anterior. Desactivarla requiere tener el esquema creado.
+El ejecutable compilado de esta rama se inicia desde `proyecto` con `node dist/src/main.js`.

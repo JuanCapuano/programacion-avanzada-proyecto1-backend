@@ -1,3 +1,4 @@
+import { FiltrosCatalogo } from '../../domain/interfaces/filtros-catalogo';
 import { Injectable, Logger } from '@nestjs/common';
 import { Producto } from '../../domain/entities/producto.entity';
 import { IProductoRepository } from '../../domain/interfaces/producto.repository-interface';
@@ -25,6 +26,10 @@ export class ProductoRepository implements IProductoRepository {
 
   async save(entity: Producto): Promise<Producto> {
     return this.persistenceService.save(entity);
+  }
+
+  findByCatalogo(filtros: FiltrosCatalogo) {
+    return this.persistenceService.findByCatalogo(filtros);
   }
 
   async findBy(
