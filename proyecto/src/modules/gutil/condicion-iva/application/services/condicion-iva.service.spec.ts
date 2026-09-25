@@ -1,12 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CondicionIvaService } from './condicion-iva.service';
 
+
 describe('CondicionIvaService', () => {
   let service: CondicionIvaService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CondicionIvaService],
+      providers: [
+        CondicionIvaService,
+        { provide: 'ICondicionIvaRepository', useValue: {} },
+      ],
     }).compile();
 
     service = module.get<CondicionIvaService>(CondicionIvaService);

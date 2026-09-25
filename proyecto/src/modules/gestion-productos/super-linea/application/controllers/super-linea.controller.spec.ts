@@ -8,7 +8,7 @@ describe('SuperLineaController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SuperLineaController],
-      providers: [SuperLineaService],
+      providers: [{ provide: SuperLineaService, useValue: {} }],
     }).compile();
 
     controller = module.get<SuperLineaController>(SuperLineaController);

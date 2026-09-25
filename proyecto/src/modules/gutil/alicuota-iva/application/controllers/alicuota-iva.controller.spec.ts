@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AlicuotaIvaController } from './alicuota-iva.controller';
-import { AlicuotaIvaService } from '../../alicuota-iva.service';
+import { AlicuotaIvaService } from '../services/alicuota-iva.service';
+import { AuthGuard } from 'src/modules/gestion-usuario/auth/auth.guard';
 
 describe('AlicuotaIvaController', () => {
   let controller: AlicuotaIvaController;
@@ -8,8 +9,11 @@ describe('AlicuotaIvaController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AlicuotaIvaController],
-      providers: [AlicuotaIvaService],
-    }).compile();
+      providers: [{ provide: AlicuotaIvaService, useValue: {} }],
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<AlicuotaIvaController>(AlicuotaIvaController);
   });
