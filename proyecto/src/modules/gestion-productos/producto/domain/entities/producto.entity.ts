@@ -19,6 +19,7 @@ import { CantidadColumn } from 'src/modules/common/decorators/cantidad-column.de
 import { PorcentajeColumn } from 'src/modules/common/decorators/porcentaje-column.decorator';
 import { Proveedor } from 'src/modules/organizacion/proveedor/domain/entities/proveedor.entity';
 import { OrigenDenominacion } from '../enums/origen-denominacion.enum';
+import { TipoAjustePrecio } from '../enums/tipo-ajuste-precio.enum';
 import { UnidadMedida } from '../enums/unidad-medida.enum';
 import { Presentacion } from '../value-objects/presentacion.vo';
 import {
@@ -221,14 +222,14 @@ export class Producto {
 
 
   calcularPrecio(): number {
-  const costo = this.costo ?? 0;
-  const porcentaje = this.porcentaje ?? 0;
-
-  const precioCalculado = costo + (costo * porcentaje) / 100;
+  const precioCalculado = Producto.calcularPrecioPara(
+    this.costo ?? 0,
+    this.porcentaje ?? 0,
+  );
 
   if (precioCalculado <= 0) {
     throw new ProductoDomainException(
-      `El precio calculado (${precioCalculado}) debe ser mayor a 0. Revisá el costo y el porcentaje cargados.`,
+       `El precio calculado (${precioCalculado}) debe sermayor a 0. Revisá el costo y el porcentaje cargados.`,
     );
   }
 
@@ -237,46 +238,84 @@ export class Producto {
 }
 
   /**
-   * Simula el resultado de aplicar un ajuste masivo de precio (CR-006), sin
-   * mutar el estado de la entidad. Quien llama decide si aplica el resultado.
+   * Fórmula de precio: precio = costo + (costo * margen / 100). Calcula con los
+   * valores recibidos, sin modificar ningún producto ni validar el resultado.
+   * calcularPrecio() la usa con los datos del producto; simularAjustePrecio()
+   * con el costo o margen resultante del ajuste, que todavía no se asignó.
+   */
+  static calcularPrecioPara(costo: number, margen: number): number {
+    return costo + (costo * margen) / 100;
+  } 
+
+  /**
+   * Simula el resultado de aplicar un ajuste masivo (CR-006), sin mutar el
+   * estado de la entidad. El ajuste nunca toca el precio directamente: cambia
+   * el costo (COSTO_PORCENTUAL / COSTO_MONTO) o el margen (MARGEN), y el precio
+   * se deriva con calcularPrecioPara(). No llama a calcularPrecio() porque ese
+   * método modifica el producto y lanza excepción si el precio es inválido, y
+   * la previsualización sólo tiene que informar el resultado.
    */
   simularAjustePrecio(
-    tipoAjuste: 'porcentaje' | 'monto',
+    tipoAjuste: TipoAjustePrecio,
     valor: number,
-  ): { precioResultante: number; porcentajeResultante: number; valido: boolean } {
-    const precio = this.precio ?? 0;
-    const costo = this.costo ?? 0;
+  ): {
+    costoResultante: number;
+    porcentajeResultante: number;
+    precioResultante: number;
+    valido: boolean;
+  } {
+    let costoResultante = this.costo ?? 0;
+    let porcentajeResultante = this.porcentaje ?? 0;
 
-    const precioResultante =
-      tipoAjuste === 'porcentaje' ? precio * (1 + valor / 100) : precio + valor;
+    switch (tipoAjuste) {
+      case TipoAjustePrecio.COSTO_PORCENTUAL:
+        costoResultante = costoResultante * (1 + valor / 100);
+        break;
+      case TipoAjustePrecio.COSTO_MONTO:
+        costoResultante = costoResultante + valor;
+        break;
+      case TipoAjustePrecio.MARGEN:
+        porcentajeResultante = valor;
+        break;
+    }
 
-    const porcentajeResultante = (precioResultante / costo - 1) * 100;
+    const precioResultante = Producto.calcularPrecioPara(
+      costoResultante,
+      porcentajeResultante,
+    );
 
     return {
-      precioResultante,
+      costoResultante,
       porcentajeResultante,
+      precioResultante,
       valido:
-      precioResultante > 0 &&
-      porcentajeResultante >= -99.99
+        costoResultante > 0 && porcentajeResultante >= 0 && precioResultante > 0,
     };
   }
 
   /**
-   * Aplica un ajuste masivo de precio (CR-006), mutando la entidad. Reutiliza
-   * el mismo cálculo que simularAjustePrecio(); si el resultado no es válido,
-   * rechaza el ajuste sin modificar el estado.
+   * Aplica un ajuste masivo (CR-006), mutando la entidad. Reutiliza el mismo
+   * cálculo que simularAjustePrecio(); si el resultado no es válido, rechaza el
+   * ajuste sin modificar el estado. El precio final lo fija calcularPrecio().
    */
-  aplicarAjustePrecio(tipoAjuste: 'porcentaje' | 'monto', valor: number): void {
-    const { precioResultante, porcentajeResultante, valido } =
+  aplicarAjustePrecio(tipoAjuste: TipoAjustePrecio, valor: number): void {
+    const { costoResultante, porcentajeResultante, valido } =
       this.simularAjustePrecio(tipoAjuste, valor);
 
     if (!valido) {
+      if (porcentajeResultante < 0) {
+        throw new ProductoDomainException(
+          `El margen no puede ser negativo (${porcentajeResultante}%) para el producto "${this.denominacion}". Se rechaza la operación completa y ningún producto fue modificado.`,
+        );
+      }
       throw new ProductoDomainException(
-        `La actualización dejaría el precio del producto "${this.denominacion}" en un valor inválido (${precioResultante}). Se rechaza la operación completa y ningún producto fue modificado.`,
+        `La actualización dejaría el costo del producto "${this.denominacion}" en un valor inválido (${costoResultante}). Se rechaza la operación completa y ningún producto fue modificado.`,
       );
     }
+
+    this.costo = costoResultante;
     this.porcentaje = porcentajeResultante;
-    this.calcularPrecio(); // el precio se deriva de costo + margen
+    this.calcularPrecio();
   }
 
   // =====================================================================

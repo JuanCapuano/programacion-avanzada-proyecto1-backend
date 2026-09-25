@@ -1,5 +1,6 @@
 // domain/services/producto-intrinsic-validation.service.ts
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { TipoAjustePrecio } from '../enums/tipo-ajuste-precio.enum';
 
 @Injectable()
 export class ProductoIntrinsicValidationService {
@@ -101,6 +102,29 @@ export class ProductoIntrinsicValidationService {
           'El precio Mayorista no puede superar el precio Ocasional',
         );
       }
+    }
+  }
+
+  /**
+   * Valida el valor de la actualización masiva según el tipo de ajuste (CR-006).
+   */
+  validarAjusteMasivo(tipoAjuste: TipoAjustePrecio, valor: number): void {
+    if (tipoAjuste === TipoAjustePrecio.MARGEN) {
+      if (valor < 0) {
+        throw new BadRequestException('El margen no puede ser negativo');
+      }
+      return;
+    }
+
+    if (valor === 0) {
+      throw new BadRequestException(
+        'El valor del ajuste no puede ser 0 porque no produce cambios',
+      );
+    }
+    if (tipoAjuste === TipoAjustePrecio.COSTO_PORCENTUAL && valor <= -100) {
+      throw new BadRequestException(
+        'El porcentaje debe ser mayor a -100% (con -100% el costo quedaría en 0)',
+      );
     }
   }
 

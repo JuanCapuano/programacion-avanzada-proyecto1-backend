@@ -173,6 +173,7 @@ export class ProductoService {
   }
 
   async actualizarPreciosMasivo(dto: ActualizacionMasivaPrecioDto) {
+    this.intrinsicValidationService.validarAjusteMasivo(dto.tipoAjuste, dto.valor);
 
     await this.usuarioValidator.validarUsuarioExiste(dto.usuarioId)
 
@@ -194,8 +195,9 @@ export class ProductoService {
 
     await this.repository.saveMany(productos);
 
-    return MessageFrontUtils.create(
+    return MessageFrontUtils.createdItem(
       `Se actualizaron los precios de ${productos.length} producto(s)`,
+      productos.length,
     );
   }
   //Otro metodo duplicado iguak que el controller
@@ -268,6 +270,8 @@ export class ProductoService {
   async previsualizarActualizacionMasivo(
     dto: ActualizacionMasivaPrecioDto,
   ): Promise<PreviewActualizacionMasivaPrecioDto[]> {
+    this.intrinsicValidationService.validarAjusteMasivo(dto.tipoAjuste, dto.valor);
+
     if (dto.alcance === 'linea') {
       await this.lineaService.findEntityById(dto.lineaId as number);
     }
@@ -282,9 +286,12 @@ export class ProductoService {
       return {
         id: producto.id,
         denominacion: producto.denominacion,
+        costoActual: producto.costo ?? 0,
+        costoResultante: resultado.costoResultante,
+        porcentajeActual: producto.porcentaje ?? 0,
+        porcentajeResultante: resultado.porcentajeResultante,
         precioActual: producto.precio ?? 0,
         precioResultante: resultado.precioResultante,
-        porcentajeResultante: resultado.porcentajeResultante,
         valido: resultado.valido,
       };
     });

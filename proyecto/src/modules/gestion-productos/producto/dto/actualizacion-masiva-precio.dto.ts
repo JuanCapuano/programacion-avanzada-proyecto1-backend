@@ -1,36 +1,34 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsEnum,
   IsIn,
   IsInt,
-  IsISBN,
   IsNotEmpty,
   IsNumber,
-  NotEquals,
   ValidateIf,
   Min,
 } from 'class-validator';
-import { dot } from 'node:test/reporters';
+import { TipoAjustePrecio } from '../domain/enums/tipo-ajuste-precio.enum';
 
 export class ActualizacionMasivaPrecioDto {
   @ApiProperty({
-    example: 'porcentaje',
-    description: 'Tipo de ajuste a aplicar sobre el precio',
-    enum: ['porcentaje', 'monto'],
+    example: TipoAjustePrecio.COSTO_PORCENTUAL,
+    description:
+      'Tipo de ajuste: porcentual sobre el costo, monto fijo sobre el costo o asignación de un nuevo margen',
+    enum: TipoAjustePrecio,
   })
-  @IsIn(['porcentaje', 'monto'], {
-    message: 'tipoAjuste debe ser "porcentaje" o "monto"',
+  @IsEnum(TipoAjustePrecio, {
+    message:
+      'tipoAjuste debe ser "costo_porcentual", "costo_monto" o "margen"',
   })
-  tipoAjuste: 'porcentaje' | 'monto';
+  tipoAjuste: TipoAjustePrecio;
 
   @ApiProperty({
     example: 10,
     description:
-      'Valor del ajuste. Puede ser negativo (descuento). No puede ser 0.',
+      'costo_porcentual: % sobre el costo (≠ 0 y > -100). costo_monto: monto a sumar o restar al costo (≠ 0). margen: nuevo margen en % (≥ 0).',
   })
-  @IsNumber()
-  @NotEquals(0, { message: 'El valor del ajuste no puede ser 0' })
-  @ValidateIf((dto) => dto.tipoAjuste === 'porcentaje')
-  @Min(-99.99, { message: 'Un porcentaje ≤ -100% dejaría cualquier precio en 0 o negativo' })
+  @IsNumber({}, { message: 'valor debe ser un número' })
   valor: number;
 
   @ApiProperty({

@@ -61,7 +61,9 @@ export class ProductoController {
     return this.service.create(createDto);
   }
   
-  @Put('precios/actualizacion-masiva')
+  // POST y no PUT: los ajustes de costo no son idempotentes (+10% dos veces da +21%),
+  // y PUT le promete al cliente que puede reintentar la petición sin efectos extra.
+  @Post('precios/actualizacion-masiva')
   @Roles('Root', 'Administrador')
   actualizarPreciosMasivo(@Body() dto: ActualizacionMasivaPrecioDto) {
     this.logger.log('Actualizando precios de forma masiva...');
