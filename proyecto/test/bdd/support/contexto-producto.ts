@@ -9,7 +9,9 @@ import { ProductoValidationService } from 'src/modules/gestion-productos/product
 import { GeneradorDenominacion } from 'src/modules/gestion-productos/producto/domain/services/generador-denominacion.service';
 import { ProductoRelatedEntitiesValidator } from 'src/modules/gestion-productos/producto/infraestructure/validators/producto-related-entities.validator.ts';
 import { ProductoUniquenessValidator } from 'src/modules/gestion-productos/producto/infraestructure/validators/producto-uniqueness.validator.ts';
+import { SuperLineaController } from 'src/modules/gestion-productos/super-linea/application/controllers/super-linea.controller';
 import { SuperLineaService } from 'src/modules/gestion-productos/super-linea/application/services/super-linea.service';
+import { PoliticaEliminacionSuperLinea } from 'src/modules/gestion-productos/super-linea/domain/services/politica-eliminacion-super-linea.service';
 import { ProductoDeletePolicy } from 'src/modules/gestion-productos/producto/application/policies/producto-delete.policy';
 import { ProductoPersistenceAdapter } from 'src/modules/gestion-productos/producto/infraestructure/repositories/producto.persistence-adapters';
 import { Producto } from 'src/modules/gestion-productos/producto/domain/entities/producto.entity';
@@ -35,6 +37,8 @@ type EntidadSimple = {
   id: number;
   denominacion: string;
   sistema: number;
+  // CR-003: las líneas cuelgan de una superlínea.
+  superLineaId?: number;
   observacion?: string;
   deletedAt?: Date | null;
   stockMinimo?: number;
@@ -69,6 +73,11 @@ export class ContextoProducto {
   productos: Producto[] = [];
   marcas: EntidadSimple[] = [];
   lineas: EntidadSimple[] = [];
+  superLineas: EntidadSimple[] = [
+    // Toda línea necesita una superlínea: las features que no la nombran usan esta.
+    { id: 1, denominacion: 'GENERAL', sistema: 0, deletedAt: null },
+  ];
+
   historial: RegistroHistorial[] = [];
 
   /** Última respuesta HTTP recibida, para verificarla en los pasos Then. */
@@ -83,6 +92,7 @@ export class ContextoProducto {
         ProductoController,
         MarcaController,
         LineaController,
+        SuperLineaController,
         HistorialPrecioController,
       ],
       providers: [
@@ -129,18 +139,12 @@ export class ContextoProducto {
           },
         },
         { provide: ProductoDeletePolicy, useValue: {} },
-        // CR-004: LineaService pasó a depender de SuperLineaService. La super
-        // línea queda fuera del alcance de estas features (tiene la suya
-        // propia), así que se responde siempre con una válida.
+        // CR-003: la superlínea se ejercita de verdad, con su propio feature.
+        SuperLineaService,
+        PoliticaEliminacionSuperLinea,
         {
-          provide: SuperLineaService,
-          useValue: {
-            findById: async (id: number) => ({ id, denominacion: 'General' }),
-            findEntityById: async (id: number) => ({
-              id,
-              denominacion: 'General',
-            }),
-          },
+          provide: 'ISuperLineaRepository',
+          useValue: this.repositorioSuperLineas(),
         },
         { provide: ProductoPersistenceAdapter, useValue: {} },
       ],
@@ -188,17 +192,50 @@ export class ContextoProducto {
     return id;
   }
 
-  darDeAltaLinea(denominacion: string, sistema = 0): number {
+  darDeAltaLinea(denominacion: string, sistema = 0, superLineaId = 1): number {
     const id = this.lineas.length + 1;
     this.lineas.push({
       id,
       denominacion,
       sistema,
+      superLineaId,
       deletedAt: null,
       stockMinimo: 0,
       utilizaStockMinimo: false,
     });
     return id;
+  }
+
+  darDeAltaSuperLinea(denominacion: string, sistema = 0): number {
+    const existente = this.superLineas.find(
+      (sl) => sl.denominacion === denominacion,
+    );
+    if (existente) {
+      return existente.id;
+    }
+    const id = this.superLineas.length + 1;
+    this.superLineas.push({ id, denominacion, sistema, deletedAt: null });
+    return id;
+  }
+
+  idSuperLinea(denominacion: string): number {
+    const superLinea = this.superLineas.find(
+      (sl) => sl.denominacion === denominacion,
+    );
+    if (!superLinea) {
+      throw new Error(
+        `La superlínea ${denominacion} no fue creada en el Background`,
+      );
+    }
+    return superLinea.id;
+  }
+
+  superLineaPorId(id: number): EntidadSimple | undefined {
+    return this.superLineas.find((sl) => sl.id === id);
+  }
+
+  lineaPorDenominacion(denominacion: string): EntidadSimple | undefined {
+    return this.lineas.find((l) => l.denominacion === denominacion);
   }
 
   idMarca(denominacion: string): number {
@@ -434,6 +471,7 @@ export class ContextoProducto {
     return {
       create: async (dto: {
         denominacion: string;
+        superLineaId?: number;
         stockMinimo?: number;
         utilizaStockMinimo?: boolean;
         observacion?: string;
@@ -442,6 +480,7 @@ export class ContextoProducto {
           id: lineas.length + 1,
           denominacion: dto.denominacion,
           observacion: dto.observacion,
+          superLineaId: dto.superLineaId,
           stockMinimo: dto.stockMinimo ?? 0,
           utilizaStockMinimo: dto.utilizaStockMinimo ?? false,
           sistema: 0,
@@ -450,6 +489,10 @@ export class ContextoProducto {
         lineas.push(entity);
         return entity;
       },
+
+      // CR-003: una superlínea con líneas activas no se puede eliminar.
+      existsLineasActivasBySuperLinea: async (superLineaId: number) =>
+        activas().some((l) => l.superLineaId === superLineaId),
       update: async (id: number, dto: Partial<EntidadSimple>) => {
         const entity = lineas.find((l) => l.id === id) as EntidadSimple;
         Object.assign(entity, dto);
@@ -474,6 +517,57 @@ export class ContextoProducto {
         }
         return guardada;
       },
+    };
+  }
+
+  private repositorioSuperLineas() {
+    const superLineas = this.superLineas;
+    const activas = () => superLineas.filter((sl) => !sl.deletedAt);
+    const igual = (a: string, b: string) =>
+      (a ?? '').trim().toUpperCase() === (b ?? '').trim().toUpperCase();
+
+    return {
+      create: async (dto: { denominacion: string; observacion?: string }) => {
+        const entity: EntidadSimple = {
+          id: superLineas.length + 1,
+          denominacion: dto.denominacion,
+          observacion: dto.observacion,
+          sistema: 0,
+          deletedAt: null,
+        };
+        superLineas.push(entity);
+        return entity;
+      },
+      update: async (id: number, dto: Partial<EntidadSimple>) => {
+        const entity = superLineas.find((sl) => sl.id === id) as EntidadSimple;
+        Object.assign(entity, dto);
+        return entity;
+      },
+      delete: async (id: number) => {
+        const entity = superLineas.find((sl) => sl.id === id);
+        if (entity) {
+          entity.deletedAt = new Date();
+        }
+        return entity;
+      },
+      findOne: async (id: number) => activas().find((sl) => sl.id === id) ?? null,
+      findAll: async () => activas(),
+      findAllFor: async () => activas(),
+      findAllSinSistemaFor: async () => activas().filter((sl) => !sl.sistema),
+      findByDenominacion: async (denominacion: string) =>
+        activas().find((sl) => igual(sl.denominacion, denominacion)) ?? null,
+      // Incluye las eliminadas: la denominación sigue ocupada.
+      findByDenominacionWithDeleted: async (denominacion: string) =>
+        superLineas.find((sl) => igual(sl.denominacion, denominacion)) ?? null,
+      findByDenominacionFiltered: async (denominacion: string) => {
+        const texto = (denominacion ?? '').toUpperCase();
+        const data = activas().filter((sl) =>
+          sl.denominacion.toUpperCase().includes(texto),
+        );
+        return { data, total: data.length };
+      },
+      findByIdConAuditoria: async (id: number) =>
+        activas().find((sl) => sl.id === id) ?? null,
     };
   }
 
