@@ -9,6 +9,7 @@ import {
   IsNumber,
   IsInt,
   IsEnum,
+  Min,
   IsPositive,
 } from 'class-validator';
 import { AlicuotaIva } from 'src/modules/organizacion/enums/alicuota-iva.enum';
@@ -80,9 +81,16 @@ export class CreateProductoDto {
   @Transform(({ value }) => value === 'true' || value === true)
   envioGratis?: boolean;
 
-  @IsOptional()
-  @IsNumber()
-  costo?: number;
+  @IsNumber(
+    {},
+    {
+      message: ({ value }) =>
+        value === undefined || value === null
+          ? 'El costo es obligatorio'
+          : 'El costo debe ser numérico',
+    },
+  )
+  costo: number; 
 
   @IsBoolean()
   utilizaPack: boolean;
@@ -105,8 +113,13 @@ export class CreateProductoDto {
   marcaId: number;
 
 
+  /**
+   * CR-001 · US-1: el margen es opcional; si viene, debe ser numérico y no
+   * puede ser negativo.
+   */
   @IsOptional()
-  @IsNumber()
+  @IsNumber({}, { message: 'El margen debe ser numérico' })
+  @Min(0, { message: 'El margen no puede ser negativo' })
   porcentaje?: number;
 
 

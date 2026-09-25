@@ -3,6 +3,38 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 
 @Injectable()
 export class ProductoIntrinsicValidationService {
+  validarCosto(costo: unknown): void {
+    if (costo === undefined || costo === null) {
+      throw new BadRequestException('El costo es obligatorio');
+    }
+
+    if (typeof costo !== 'number' || !Number.isFinite(costo)) {
+      throw new BadRequestException('El costo debe ser numérico');
+    }
+
+    if (costo <= 0) {
+      throw new BadRequestException('El costo debe ser mayor a 0');
+    }
+  }
+
+  /**
+   * CR-001 · US-1: el margen es opcional, pero cuando viene debe ser numérico
+   * y no puede ser negativo, para no generar precios de venta absurdos.
+   */
+  validarMargen(margen: unknown): void {
+    if (margen === undefined || margen === null) {
+      return;
+    }
+
+    if (typeof margen !== 'number' || !Number.isFinite(margen)) {
+      throw new BadRequestException('El margen debe ser numérico');
+    }
+
+    if (margen < 0) {
+      throw new BadRequestException('El margen no puede ser negativo');
+    }
+  }
+
   /**
    * Valida todos los datos intrínsecos del producto, los datos intrínsecos son aquellos que no dependen de otras entidades 
    * lo usamos para validar los datos básicos del producto, como denominación, marca, línea, precios y alícuota IVA

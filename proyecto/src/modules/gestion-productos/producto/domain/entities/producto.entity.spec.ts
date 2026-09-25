@@ -279,21 +279,22 @@ describe('Producto (Aggregate Root) — denominación y presentación', () => {
       expect(producto.precio).toBe(1250);
     });
 
-    it('costo 0 da precio 0', () => {
+    // CR-001: un precio de 0 no es un producto vendible, el dominio lo rechaza.
+    it('costo 0 es rechazado porque el precio resultante no es mayor a 0', () => {
       const producto = new Producto();
       producto.costo = 0;
       producto.porcentaje = 15;
 
-      expect(producto.calcularPrecio()).toBe(0);
-      expect(producto.precio).toBe(0);
+      expect(() => producto.calcularPrecio()).toThrow(ProductoDomainException);
+      expect(producto.precio).toBeUndefined();
     });
 
-    it('sin costo da precio 0', () => {
+    it('sin costo es rechazado porque el precio resultante no es mayor a 0', () => {
       const producto = new Producto();
       producto.porcentaje = 15;
 
-      expect(producto.calcularPrecio()).toBe(0);
-      expect(producto.precio).toBe(0);
+      expect(() => producto.calcularPrecio()).toThrow(ProductoDomainException);
+      expect(producto.precio).toBeUndefined();
     });
 
     it('sin porcentaje el margen es 0% y el precio es igual al costo', () => {

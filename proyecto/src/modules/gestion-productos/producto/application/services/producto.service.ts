@@ -495,6 +495,9 @@ export class ProductoService {
  
  
   private async validarYPrepararCreacion(dto: CreateProductoDto) {
+    this.intrinsicValidationService.validarCosto(dto.costo);
+    this.intrinsicValidationService.validarMargen(dto.porcentaje);
+
     // Validar datos  (Domain - sin DB)
     this.intrinsicValidationService.validarDatosBasicos({
       denominacion: dto.denominacion,
@@ -572,6 +575,16 @@ export class ProductoService {
     const usuario = await this.usuarioValidator.validarUsuarioExiste(
       dto.usuarioUpdatedId,
     );
+
+    // CR-001: al editar, costo y margen son opcionales; si vienen, se validan.
+    if (dto.costo !== undefined) {
+      this.intrinsicValidationService.validarCosto(dto.costo);
+    }
+
+    if (dto.porcentaje !== undefined) {
+      this.intrinsicValidationService.validarMargen(dto.porcentaje);
+    }
+
     return { marca, linea, usuario };
   }
 
