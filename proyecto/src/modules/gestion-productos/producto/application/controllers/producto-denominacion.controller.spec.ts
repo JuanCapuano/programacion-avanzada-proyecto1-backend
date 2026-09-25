@@ -32,6 +32,7 @@ describe('ProductoController — denominación (CR-005, HTTP)', () => {
     utilizaStockMinimo: false,
     utilizaPack: false,
     usuarioCreatedId: 9,
+    costo: 100,
     presentacionCantidad: 1.5,
     presentacionUnidad: 'l',
   };

@@ -18,6 +18,8 @@ import { Producto } from '../../domain/entities/producto.entity';
 import { OrigenDenominacion } from '../../domain/enums/origen-denominacion.enum';
 import { UnidadMedida } from '../../domain/enums/unidad-medida.enum';
 import { ProductoDomainException } from '../../domain/exceptions/producto-domain.exception';
+import { HistorialPrecioService } from 'src/modules/gestion-productos/historial-precio-producto/application/services/historial-precio.service';
+import { ProductoPersistenceAdapter } from '../../infraestructure/repositories/producto.persistence-adapters';
 
 /**
  * Tests de la capa de aplicación del CR-005: verifican que ProductoService
@@ -28,7 +30,11 @@ describe('ProductoService — denominación automática (CR-005)', () => {
   let marca = { id: 1, denominacion: 'Coca-Cola', sistema: 0 };
 
   let service: ProductoService;
-  let repository: { findOne: jest.Mock; save: jest.Mock };
+  let repository: {
+    findOne: jest.Mock;
+    save: jest.Mock;
+    guardarConHistorial: jest.Mock;
+  };
   let unicidad: {
     validarDenominacionUnica: jest.Mock;
     validarCodigoProveedorUnico: jest.Mock;
@@ -41,6 +47,7 @@ describe('ProductoService — denominación automática (CR-005)', () => {
     utilizaStockMinimo: false,
     utilizaPack: false,
     usuarioCreatedId: 9,
+    costo: 100,
     presentacionCantidad: 1.5,
     presentacionUnidad: UnidadMedida.LITRO,
   };
@@ -50,6 +57,8 @@ describe('ProductoService — denominación automática (CR-005)', () => {
     repository = {
       findOne: jest.fn(),
       save: jest.fn(async (entity: Producto) => entity),
+      // CR-007: la edicion guarda producto e historial en la misma transaccion.
+      guardarConHistorial: jest.fn(async (entidades: Producto[]) => entidades),
     };
     unicidad = {
       validarDenominacionUnica: jest.fn(),
@@ -82,6 +91,13 @@ describe('ProductoService — denominación automática (CR-005)', () => {
         { provide: ProveedorService, useValue: {} },
         { provide: UsuarioService, useValue: { findOne: async () => ({ id: 9 }) } },
         { provide: ProductoDeletePolicy, useValue: {} },
+        { provide: ProductoPersistenceAdapter, useValue: {} },
+        {
+          provide: HistorialPrecioService,
+          useValue: {
+            prepararRegistroSiCambio: jest.fn().mockReturnValue(null),
+          },
+        },
       ],
     }).compile();
 
@@ -91,7 +107,16 @@ describe('ProductoService — denominación automática (CR-005)', () => {
   /** Producto persistido con denominación automática, como lo devolvería la BD. */
   function productoExistenteAutomatico(): Producto {
     const producto = new Producto();
-    Object.assign(producto, { id: 5, marcaId: 1, lineaId: 2, alicuotaIva: 21 });
+    // Costo y margen: la edicion recalcula el precio y este debe ser > 0 (CR-001).
+    Object.assign(producto, {
+      id: 5,
+      marcaId: 1,
+      lineaId: 2,
+      alicuotaIva: 21,
+      costo: 100,
+      porcentaje: 15,
+      precio: 115,
+    });
     producto.generarDenominacionAutomatica(new GeneradorDenominacion(), {
       marca: marca.denominacion,
       linea: linea.denominacion,
@@ -99,8 +124,17 @@ describe('ProductoService — denominación automática (CR-005)', () => {
     return producto;
   }
 
+  /** El alta y la restauracion usan save(); la edicion, guardarConHistorial(). */
   function productoGuardado(): Producto {
-    return repository.save.mock.calls.at(-1)![0];
+    if (repository.save.mock.calls.length > 0) {
+      return repository.save.mock.calls.at(-1)![0];
+    }
+    return repository.guardarConHistorial.mock.calls.at(-1)![0][0];
+  }
+
+  function esperarQueNoGuardoNada(): void {
+    expect(repository.save).not.toHaveBeenCalled();
+    expect(repository.guardarConHistorial).not.toHaveBeenCalled();
   }
 
   describe('configuración del módulo', () => {
@@ -151,7 +185,7 @@ describe('ProductoService — denominación automática (CR-005)', () => {
       await expect(service.create({ ...altaBase } as any)).rejects.toThrow(
         ConflictException,
       );
-      expect(repository.save).not.toHaveBeenCalled();
+      esperarQueNoGuardoNada();
     });
   });
 
@@ -233,7 +267,7 @@ describe('ProductoService — denominación automática (CR-005)', () => {
       await expect(
         service.update(5, { denominacion: 'sprite', usuarioUpdatedId: 9 } as any),
       ).rejects.toThrow(ConflictException);
-      expect(repository.save).not.toHaveBeenCalled();
+      esperarQueNoGuardoNada();
     });
   });
   describe('restaurar automática: unicidad (arreglo 4)', () => {
@@ -266,7 +300,7 @@ describe('ProductoService — denominación automática (CR-005)', () => {
       await expect(service.restaurarDenominacionAutomatica(5, 9)).rejects.toThrow(
         ConflictException,
       );
-      expect(repository.save).not.toHaveBeenCalled();
+      esperarQueNoGuardoNada();
     });
   });
   describe('previsualizar denominación (US-10)', () => {
@@ -293,7 +327,7 @@ describe('ProductoService — denominación automática (CR-005)', () => {
     it('no guarda ni consulta unicidad: es una consulta pura', async () => {
       await service.previsualizarDenominacion({ marcaId: 1, lineaId: 2 });
 
-      expect(repository.save).not.toHaveBeenCalled();
+      esperarQueNoGuardoNada();
       expect(unicidad.validarDenominacionUnica).not.toHaveBeenCalled();
     });
 

@@ -1,3 +1,4 @@
+import { FiltrosCatalogo } from './filtros-catalogo';
 import { Linea } from '../../../linea/domain/entities/linea.entity';
 import { Marca } from '../../../marca/domain/entities/marca.entity';
 import { CreateProductoDto } from '../../dto/create-producto.dto';
@@ -6,6 +7,7 @@ import { UpdateProductoDto } from '../../dto/update-producto.dto';
 import { IUnitOfWork } from 'src/modules/common/unit-of-work/iunit-of-work.';
 import { Usuario } from 'src/modules/gestion-usuario/usuario/domain/entities/usuario.entity';
 import { UpdatePrecioDto } from '../../dto/update-precio.dto';
+import { HistorialPrecioProducto } from '../../../historial-precio-producto/domain/entities/historial-precio-producto.entity';
 
 export interface IProductoRepository {
 
@@ -26,6 +28,8 @@ export interface IProductoRepository {
   findOne(id: number): Promise<Producto | null>;
   findByIdConAuditoria(id: number): Promise<Producto | null>;
   findByDenominacion(denominacion: string): Promise<Producto | null>;
+
+  findByCatalogo(filtros: FiltrosCatalogo): Promise<{ data: Producto[]; total: number }>;
 
   findBy(
     denominacion: string,
@@ -107,4 +111,14 @@ export interface IProductoRepository {
   ): Promise<Producto[]>;
 
   saveMany(entities: Producto[]): Promise<Producto[]>;
+
+  /**
+   * CR-007: guarda los productos y sus registros de historial de precio en una
+   * única transacción. Si algo falla, no queda ni el cambio de precio ni el
+   * historial.
+   */
+  guardarConHistorial(
+    productos: Producto[],
+    historial: HistorialPrecioProducto[],
+  ): Promise<Producto[]>;
 }

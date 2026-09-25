@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsString,
   IsNotEmpty,
@@ -20,6 +20,11 @@ export class CreateLineaDto {
     message: 'La denominación solo puede contener letras, números y espacios.',
   })
   denominacion: string;
+
+  @IsNotEmpty({message: 'El id de la super linea es obligatorio.'})
+  @Type(() => Number)
+  @IsInt({message: 'El id de la super linea debe ser un número entero.'})
+  superLineaId: number;
 
   @IsOptional()
   @IsInt()

@@ -1,8 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { Producto } from '../domain/entities/producto.entity';
 import { GetProductoDto } from '../dto/get-producto.dto';
-import { UpdatePrecioDto } from '../dto/update-precio.dto';
-import { Usuario } from 'src/modules/gestion-usuario/usuario/domain/entities/usuario.entity';
 import { ProductoDto } from '../dto/producto.dto';
 import { OrigenDenominacion } from '../domain/enums/origen-denominacion.enum';
 
@@ -56,24 +54,6 @@ export class ProductoMapper {
 
     };
   }
-
-
-  
-  // static mapPrecios(
-  //   entity: Producto,
-  //   dto: UpdatePrecioDto,
-  //   usuario: Usuario,
-  // ): void {
-  //   entity.costo = dto.costo;
-  //   entity.costoDolar = dto.costoDolar;
-  //   entity.cotizacionDolar = dto.cotizacionDolar;
-  //
-  //   entity.fechaCostoDolar = new Date();
-  //   entity.fechaCosto = new Date();
-  //
-  //   entity.usuarioUpdated = usuario;
-  // }
-
 
   static toDto(entity: Producto): ProductoDto {
    

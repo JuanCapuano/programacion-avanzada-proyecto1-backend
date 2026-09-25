@@ -15,6 +15,7 @@ describe('MarcaController - Decorators', () => {
 
   const mockService = {
     findByDenominacionFiltered: jest.fn(),
+    findBy: jest.fn(),
   };
 
   const mockJwtService = {
@@ -76,27 +77,27 @@ describe('MarcaController - Decorators', () => {
   it('debería llamar al servicio con los parámetros correctos', async () => {
     const dto = { denominacion: 'PRUEBA', skip: 0, take: 10 };
     const result = ['resultado simulado'];
-    mockService.findByDenominacionFiltered.mockResolvedValue(result);
+    mockService.findBy.mockResolvedValue(result);
 
     const response = await controller.findByDenominacionFiltered(dto);
 
-    expect(service.findByDenominacionFiltered).toHaveBeenCalledWith('PRUEBA', 0, 10);
+    expect(service.findBy).toHaveBeenCalledWith('PRUEBA', 0, 10, undefined);
     expect(response).toBe(result);
   });
 
   it('debería usar cadena vacía si denominacion no está definido', async () => {
     const dto = { skip: 0, take: 10 }; // sin denominacion
     const result = [];
-    mockService.findByDenominacionFiltered.mockResolvedValue(result);
+    mockService.findBy.mockResolvedValue(result);
 
     const response = await controller.findByDenominacionFiltered(dto as any);
 
-    expect(service.findByDenominacionFiltered).toHaveBeenCalledWith('', 0, 10);
+    expect(service.findBy).toHaveBeenCalledWith('', 0, 10, undefined);
     expect(response).toBe(result);
   });
 
   it('debería propagar errores si el service falla', async () => {
-    mockService.findByDenominacionFiltered.mockRejectedValue(new Error('Fallo del service'));
+    mockService.findBy.mockRejectedValue(new Error('Fallo del service'));
 
     await expect(
       controller.findByDenominacionFiltered({ denominacion: 'algo', skip: 0, take: 10 }),
