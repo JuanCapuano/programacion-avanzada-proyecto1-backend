@@ -1,9 +1,8 @@
 import { Logger } from '@nestjs/common';
 import { Producto } from '../domain/entities/producto.entity';
 import { GetProductoDto } from '../dto/get-producto.dto';
-import { UpdatePrecioDto } from '../dto/update-precio.dto';
-import { Usuario } from 'src/modules/gestion-usuario/usuario/domain/entities/usuario.entity';
 import { ProductoDto } from '../dto/producto.dto';
+import { OrigenDenominacion } from '../domain/enums/origen-denominacion.enum';
 
 import {
   toReferenciaDto,
@@ -13,6 +12,13 @@ export class ProductoMapper {
  
   private static readonly logger = new Logger(ProductoMapper.name);
 
+  /** Usa la regla del dominio: ante un valor ausente, la denominación es manual. */
+  private static origenDenominacion(entity: Producto): OrigenDenominacion {
+    return entity.esDenominacionManual()
+      ? OrigenDenominacion.MANUAL
+      : OrigenDenominacion.AUTOMATICA;
+  }
+
   static toBusquedaDto(entity: Producto): GetProductoDto {
     const precio = entity.precio ?? 0;
     const alicuota = entity.alicuotaIva ?? 0;
@@ -20,6 +26,7 @@ export class ProductoMapper {
     return {
       id: entity.id,
       denominacion: entity.denominacion,
+      origenDenominacion: ProductoMapper.origenDenominacion(entity),
       observacion: entity.observacion ?? '',
       codigoProveedorDenominacion:
         entity.codigoProveedor + ' - ' + entity.denominacion,
@@ -43,26 +50,10 @@ export class ProductoMapper {
       cantidadPorPack: entity.cantidadPorPack ?? 0,
       sistema: entity.sistema,
       codigoReferencia: entity.codigoReferencia ?? '',
+      presentacion: entity.obtenerPresentacion()?.toString(),
 
     };
   }
-
-
-  static mapPrecios(
-    entity: Producto,
-    dto: UpdatePrecioDto,
-    usuario: Usuario,
-  ): void {
-    entity.costo = dto.costo;
-    entity.costoDolar = dto.costoDolar;
-    entity.cotizacionDolar = dto.cotizacionDolar;
-
-    entity.fechaCostoDolar = new Date();
-    entity.fechaCosto = new Date();
-
-    entity.usuarioUpdated = usuario;
-  }
-
 
   static toDto(entity: Producto): ProductoDto {
    
@@ -72,6 +63,7 @@ export class ProductoMapper {
     return {
       id: entity.id,
       denominacion: entity.denominacion,
+      origenDenominacion: ProductoMapper.origenDenominacion(entity),
       observacion: entity.observacion ?? '',
       codigoProveedor: entity.codigoProveedor ?? '',
       codigoBarra: entity.codigoBarra ?? '',
@@ -97,9 +89,10 @@ export class ProductoMapper {
       cantidadPorPack: entity.cantidadPorPack ?? 0,
       sistema: entity.sistema,
       codigoReferencia: entity.codigoReferencia ?? '',
+      presentacion: entity.obtenerPresentacion()?.toString(),
+      presentacionCantidad: entity.presentacionCantidad ?? null,
+      presentacionUnidad: entity.presentacionUnidad ?? null,
 
-    
-      
     };
   }
 

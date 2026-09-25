@@ -8,13 +8,17 @@ import {
   Logger,
   ParseIntPipe,
   Put,
+  Patch,
   Query,
   UsePipes,
+  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 
+import { SearchCatalogoDto } from '../../dto/search-catalogo.dto';
 import { CreateProductoDto } from '../../dto/create-producto.dto';
 import { UpdateProductoDto } from '../../dto/update-producto.dto';
+import { UpdatePrecioDto } from '../../dto/update-precio.dto';
 import { NormalizeDenominacionPipe } from 'src/modules/common/pipes/normalize-denominations.pipe';
 import { AuthGuard } from 'src/modules/gestion-usuario/auth/auth.guard';
 import { Roles } from 'src/modules/gestion-usuario/auth/roles.decorator';
@@ -30,12 +34,19 @@ import { AuditoriaDto } from 'src/modules/gestion-sistema/auditoria/dto/auditori
 import { NormalizeDenominacionSearchPipe } from 'src/modules/common/pipes/normalize-denominations-search.pipe';
 import { DenominacionBusquedaDto } from 'src/modules/common/dto/denominacion-busqueda.dto';
 import { SearchProductoRapidoDto } from '../../dto/search-producto-rapido.dto';
+import { ActualizacionMasivaPrecioDto } from '../../dto/actualizacion-masiva-precio.dto';
+import { PreviewActualizacionMasivaPrecioDto } from '../../dto/preview-actualizacion-masiva-precio.dto';
 import { ProductoService } from '../services/producto.service';
+import { ProductoDomainExceptionFilter } from '../filters/producto-domain-exception.filter';
+import { PrevisualizarDenominacionDto } from '../../dto/previsualizar-denominacion.dto';
+import { DenominacionPrevisualizadaDto } from '../../dto/denominacion-previsualizada.dto';
+import { GuardarCambioPreciosMasivoDto } from 'src/modules/gestion-productos/historial-precio-producto/dto/guardar-cambio-precios-masivo.dto';
 
 
 @ApiTags('Gestion Productos')
 @Controller('producto')
 @UseGuards(AuthGuard)
+@UseFilters(ProductoDomainExceptionFilter)
 export class ProductoController {
   private readonly logger = new Logger(ProductoController.name);
   constructor(private readonly service: ProductoService) {}
@@ -51,6 +62,24 @@ export class ProductoController {
     return this.service.create(createDto);
   }
   
+  @Put('precios/actualizacion-masiva')
+  @Roles('Root', 'Administrador')
+  actualizarPreciosMasivo(@Body() dto: ActualizacionMasivaPrecioDto) {
+    this.logger.log('Actualizando precios de forma masiva...');
+    return this.service.actualizarPreciosMasivo(dto);
+  }
+
+  /*CR-006 (HU3): previsualiza el resultado de la actualización masiva de precios sin persistir nada, para que el frontend lo muestre antes de que el usuario confirme.*/
+  @Post('precios/actualizacion-masiva/preview')
+  @Roles('Root', 'Administrador')
+  @ApiOkResponse({ type: PreviewActualizacionMasivaPrecioDto, isArray: true })
+  previsualizarActualizacionMasivo(
+    @Body() dto: ActualizacionMasivaPrecioDto,
+  ): Promise<PreviewActualizacionMasivaPrecioDto[]> {
+    this.logger.log('Previsualizando actualización masiva de precios...');
+    return this.service.previsualizarActualizacionMasivo(dto);
+  }
+
   @Get('find-all-for-marcas/select')
   @Roles(
     'Root',
@@ -97,6 +126,12 @@ export class ProductoController {
     return this.service.findByRapido(codigo, exacto, skip, take);
   }
 
+  @Get('search-catalogo')
+  @Roles('Root', 'Administrador', 'Empleado', 'Vendedor', 'Repartidor', 'Repositor')
+  searchCatalogo(@Query() dto: SearchCatalogoDto) {
+    return this.service.findByCatalogo(dto);
+  }
+
   @Get('search-by')
   @Roles(
     'Root',
@@ -134,6 +169,16 @@ export class ProductoController {
     );
   }
 
+  /*US-10: devuelve la denominación automática que tendría un producto con esta marca, línea y presentación, sin guardar nada. El front la usa para mostrar el nombre mientras el usuario completa el formulario. Declarada antes de @Get(':id') para que nunca la capture esa ruta.*/
+  @Get('denominacion/previsualizar')
+  @Roles('Root', 'Administrador', 'Empleado', 'Repartidor', 'Repositor')
+  @ApiOkResponse({ type: DenominacionPrevisualizadaDto })
+  previsualizarDenominacion(
+    @Query() dto: PrevisualizarDenominacionDto,
+  ): Promise<DenominacionPrevisualizadaDto> {
+    return this.service.previsualizarDenominacion(dto);
+  }
+
   @Get('marca/:id')
   @Roles('Root', 'Administrador', 'Empleado')
   async getMarcaDelProducto(@Param('id', ParseIntPipe) id: number) {
@@ -167,6 +212,20 @@ export class ProductoController {
     return this.service.update(id, updateDto);
   }
 
+
+  /*US-11: descarta la denominación manual y vuelve a generarla a partir demarca, línea y presentación. El producto queda en modo automático. */
+  @Patch(':id/restaurar-denominacion')
+  @Roles('Root', 'Administrador', 'Empleado')
+  restaurarDenominacion(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('usuarioId', ParseIntPipe) usuarioId: number,
+  ) {
+    this.logger.log(
+      `Restaurando denominación automática de ${this.ENTITY_NAME} con ID: ${id}`,
+    );
+    return this.service.restaurarDenominacionAutomatica(id, usuarioId);
+  }
+
   @Delete(':id')
   @Roles('Root', 'Administrador', 'Empleado')
   remove(
@@ -177,6 +236,16 @@ export class ProductoController {
       `Eliminando ${this.ENTITY_NAME} con ID: ${id} por usuario: ${usuarioId}`,
     );
     return this.service.remove(id, usuarioId);
+  }
+
+  @Patch(':id/precio')
+  @Roles('Root', 'Administrador', 'Empleado')
+  actualizarPrecio(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePrecioDto,
+  ) {
+    this.logger.log(`Actualizando precio del ${this.ENTITY_NAME} con ID: ${id}`);
+    return this.service.actualizarPrecio(id, dto);
   }
 
 

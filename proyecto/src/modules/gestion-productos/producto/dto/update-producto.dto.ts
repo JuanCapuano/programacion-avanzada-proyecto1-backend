@@ -1,32 +1,56 @@
 import { OmitType, PartialType } from '@nestjs/mapped-types';
-import { CreateProductoDto } from './create-producto.dto';
+import { Transform } from 'class-transformer';
 import {
-  IsNotEmpty,
   IsInt,
-  IsString,
-  MaxLength,
-  Matches,
+  IsNotEmpty,
   IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
   ValidateIf,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { CreateProductoDto } from './create-producto.dto';
+import {
+  DENOMINACION_LONGITUD_MAXIMA,
+  DENOMINACION_PATRON,
+  transformarDenominacionEdicion,
+} from './denominacion.validacion';
 
+/**
+ * Se excluyen de la herencia dos campos porque en la edición tienen otras
+ * reglas que en el alta:
+ * - denominacion (CR-005): en el alta vacía significa "generar automática";
+ *   al editar significa que el usuario borró el nombre, y se rechaza.
+ * - costo (CR-001): en el alta es obligatorio; al editar es opcional, pero si
+ *   viene debe ser numérico (el rango lo valida el dominio).
+ */
 export class UpdateProductoDto extends PartialType(
-  OmitType(CreateProductoDto, ['costo'] as const),
+  OmitType(CreateProductoDto, ['denominacion', 'costo'] as const),
 ) {
+  /*Si no viene, el nombre no se toca (o se regenera si es automático). Si viene igual al actual, no cuenta como edición.*/
+  @Transform(transformarDenominacionEdicion)
+  @IsOptional()
+  @IsString({ message: 'La denominación debe ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'La denominación no puede estar vacía.' })
+  @MaxLength(DENOMINACION_LONGITUD_MAXIMA, {
+    message: `La denominación no puede superar los ${DENOMINACION_LONGITUD_MAXIMA} caracteres.`,
+  })
+  @Matches(DENOMINACION_PATRON, {
+    message: 'La denominación contiene caracteres inválidos.',
+  })
+  denominacion?: string;
+
+  /* CR-001: el costo es opcional al editar; si viene debe ser numérico. */
   @ValidateIf((_, value) => value !== undefined)
   @IsNumber({}, { message: 'El costo debe ser numérico' })
   costo?: number;
 
-  @Transform(({ value }) => value.trim().toLowerCase())
-  @IsString({ message: 'La denominación debe ser una cadena de texto.' }) // Valida que sea string
-  @IsNotEmpty({ message: 'La denominación no puede estar vacía.' }) // Valida que no esté vacía
-  @MaxLength(255, { message: 'La denominación no puede estar vacía.' })
-  @Matches(/^[A-Za-z0-9 áéíóúÁÉÍÓÚñÑ.\-/]+$/, {
-    message:
-      'La denominación solo puede contener letras, números, espacios, puntos, guiones y barras.',
-  })
-  denominacion: string;
+  /* CR-007: motivo del cambio de precio. Solo es obligatorio si el costo o el porcentaje enviados hacen cambiar el precio*/
+  @IsOptional()
+  @IsString({ message: 'El motivo debe ser una cadena de texto.' })
+  @MaxLength(500, { message: 'El motivo no puede superar los 500 caracteres.' })
+  motivo?: string;
 
   @IsNotEmpty({ message: 'El usuarioUpdatedId es obligatorio.' })
   @IsInt({ message: 'El usuarioUpdatedId debe ser un número entero.' })

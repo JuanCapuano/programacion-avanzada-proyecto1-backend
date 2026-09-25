@@ -23,6 +23,8 @@ describe('DTOs de Producto - CR-001 margen', () => {
     alicuotaIva: AlicuotaIva.ALICUOTA_21,
     usuarioCreatedId: 1,
     costo: 1000,
+    presentacionCantidad: 1,
+    presentacionUnidad: 'l',
   };
 
   const edicionBase = {

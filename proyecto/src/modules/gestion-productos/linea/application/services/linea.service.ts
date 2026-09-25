@@ -17,7 +17,7 @@ import { LineaDto } from '../../dto/linea.dto';
 import { LineaMapper } from '../../mappers/linea.mapper';
 import { PoliticaEliminacionLinea } from '../../domain/services/politica-eliminacion-linea.service';
 import { Linea } from '../../domain/entities/linea.entity';
-
+import { SuperLineaService } from 'src/modules/gestion-productos/super-linea/application/services/super-linea.service';
 @Injectable()
 export class LineaService {
   private readonly logger = new Logger(LineaService.name);
@@ -29,6 +29,8 @@ export class LineaService {
     private readonly validacionesService: PoliticaEliminacionLinea,
     private readonly usuarioService: UsuarioService,
 
+    private readonly superLineaService: SuperLineaService,
+
   ) { }
 
   private readonly ENTITY_NAME = 'Linea';
@@ -39,6 +41,11 @@ export class LineaService {
     );
     await this.checkDenominacionExists(dto.denominacion, 0);
 
+    const superLinea = await this.superLineaService.findById(dto.superLineaId);
+
+    if (!superLinea) {
+      throw new NotFoundException('Super linea no encontrada');
+    }
 
     const entity = await this.repository.create(dto);
 
@@ -86,6 +93,8 @@ export class LineaService {
     const data: LineaDto[] = result.data.map((linea) =>
       LineaMapper.toDto(linea),
     );
+
+    this.logger.log(`Lineas obtenidas: ${JSON.stringify(data)}`);
     return {
       data,
       total: PaginacionUtils.totalItems(result.total),
@@ -202,4 +211,4 @@ export class LineaService {
     return result;
   }
 
-}
+}  

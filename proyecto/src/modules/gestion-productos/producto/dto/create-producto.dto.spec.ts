@@ -17,7 +17,9 @@ describe('CreateProductoDto - CR-001 costo', () => {
     marcaId: 1,
     alicuotaIva: AlicuotaIva.ALICUOTA_21,
     usuarioCreatedId: 1,
-    precio: 150,
+    // CR-002: la presentacion es obligatoria en el alta.
+    presentacionCantidad: 1,
+    presentacionUnidad: 'l',
   };
 
   const validar = (datos: object) =>

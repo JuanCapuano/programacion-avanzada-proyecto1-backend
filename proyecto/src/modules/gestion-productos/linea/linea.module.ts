@@ -12,11 +12,14 @@ import { LineaController } from './application/controllers/linea.controller';
 import { LineaService } from './application/services/linea.service';
 import { ProductoModule } from '../producto/producto.module';
 import { PoliticaEliminacionLinea } from './domain/services/politica-eliminacion-linea.service';
+import { SuperLineaModule } from '../super-linea/super-linea.module';
+import { SuperLineaService } from '../super-linea/application/services/super-linea.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Linea]),
     forwardRef(() => ProductoModule),
+    SuperLineaModule,
     UsuarioModule,
   ],
   controllers: [LineaController],

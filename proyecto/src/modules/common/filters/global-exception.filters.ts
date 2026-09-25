@@ -97,6 +97,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
+      // Siempre un texto en `message` (develop devolvía el arreglo crudo del
+      // ValidationPipe, lo que obligaba al front a manejar dos formatos) y la
+      // lista completa en `errores`.
       message:
         mensajesValidacion?.join(' | ') ||
         exception?.message ||
