@@ -18,6 +18,24 @@ export class ProductoIntrinsicValidationService {
   }
 
   /**
+   * CR-001 · US-1: el margen es opcional, pero cuando viene debe ser numérico
+   * y no puede ser negativo, para no generar precios de venta absurdos.
+   */
+  validarMargen(margen: unknown): void {
+    if (margen === undefined || margen === null) {
+      return;
+    }
+
+    if (typeof margen !== 'number' || !Number.isFinite(margen)) {
+      throw new BadRequestException('El margen debe ser numérico');
+    }
+
+    if (margen < 0) {
+      throw new BadRequestException('El margen no puede ser negativo');
+    }
+  }
+
+  /**
    * Valida todos los datos intrínsecos del producto
    */
   validarDatosBasicos(datos: {

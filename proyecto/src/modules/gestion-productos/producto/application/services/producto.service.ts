@@ -315,6 +315,7 @@ export class ProductoService {
    */
   private async validarYPrepararCreacion(dto: CreateProductoDto) {
     this.intrinsicValidationService.validarCosto(dto.costo);
+    this.intrinsicValidationService.validarMargen(dto.porcentaje);
 
     // Validar datos  (Domain - sin DB)
     this.intrinsicValidationService.validarDatosBasicos({
@@ -417,6 +418,10 @@ export class ProductoService {
 
     if (dto.costo !== undefined) {
       this.intrinsicValidationService.validarCosto(dto.costo);
+    }
+
+    if (dto.porcentaje !== undefined) {
+      this.intrinsicValidationService.validarMargen(dto.porcentaje);
     }
 
     return { marca, linea, usuario };

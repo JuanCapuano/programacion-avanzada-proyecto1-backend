@@ -79,12 +79,29 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     
     this.logger.error('═══════════════════════════════════════════════════════');
 
+    // CR-001: cuando el ValidationPipe rechaza un DTO, el mensaje de la
+    // excepción es el genérico "Bad Request Exception" y los mensajes útiles
+    // viajan en un arreglo dentro de su response. Se exponen para que el
+    // cliente pueda mostrar errores claros.
+    const contenido =
+      exception instanceof HttpException ? exception.getResponse() : undefined;
+    const mensajesValidacion =
+      contenido &&
+      typeof contenido === 'object' &&
+      Array.isArray((contenido as { message?: unknown }).message)
+        ? ((contenido as { message: string[] }).message)
+        : undefined;
+
     // Respuesta al cliente
     const errorResponse = {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
-      message: exception?.message || 'Internal Server Error',
+      message:
+        mensajesValidacion?.join(' | ') ||
+        exception?.message ||
+        'Internal Server Error',
+      ...(mensajesValidacion && { errores: mensajesValidacion }),
       ...(process.env.NODE_ENV === 'development' && { 
         stack: exception?.stack,
         details: exception?.response 
