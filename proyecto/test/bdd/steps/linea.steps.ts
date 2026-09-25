@@ -5,6 +5,8 @@ import { ContextoProducto } from '../support/contexto-producto';
 const feature = loadFeature(path.resolve(__dirname, '../features/linea.feature'));
 
 const USUARIO_ID = 9;
+// CR-004: la super línea queda fuera del alcance de esta feature.
+const SUPER_LINEA_ID = 1;
 
 defineFeature(feature, (test) => {
   let ctx: ContextoProducto;
@@ -27,6 +29,8 @@ defineFeature(feature, (test) => {
   async function altaDeLinea(denominacion: string, stockMinimo?: number) {
     ctx.respuesta = await ctx.http.post('/linea').send({
       denominacion,
+      // CR-004: toda línea cuelga de una super línea.
+      superLineaId: SUPER_LINEA_ID,
       utilizaStockMinimo: stockMinimo !== undefined,
       stockMinimo: stockMinimo ?? 0,
       usuarioCreatedId: USUARIO_ID,

@@ -29,6 +29,7 @@ describe('DTOs de Producto — denominación (CR-005)', () => {
     utilizaStockMinimo: false,
     utilizaPack: false,
     usuarioCreatedId: 9,
+    costo: 100,
     presentacionCantidad: 1.5,
     presentacionUnidad: 'l',
   };

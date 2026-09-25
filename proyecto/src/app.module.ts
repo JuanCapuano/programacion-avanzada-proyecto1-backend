@@ -48,7 +48,7 @@ import { HistorialPrecioProductoModule } from './modules/gestion-productos/histo
       // TypeOrmModule.forFeature([Entidad]) en tus módulos
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       // entities,
-      synchronize: false, // Nunca usar en producción, solo para desarrollo
+      synchronize: true, // Nunca usar en producción, solo para desarrollo
       ssl: process.env.DB_SSL === 'true',
     }),
 

@@ -27,6 +27,15 @@ import {
 } from '../services/generador-denominacion.service';
 import { ProductoDomainException } from '../exceptions/producto-domain.exception';
 
+/** Valores que definen el precio de un producto en un momento dado (CR-007). */
+export interface DatosPrecioProducto {
+  precio: number;
+  costo: number;
+  costoDolar: number;
+  cotizacionDolar: number;
+  porcentaje: number;
+}
+
 @Entity('producto')
 export class Producto {
   @ApiProperty()
@@ -36,12 +45,7 @@ export class Producto {
   @ApiProperty()
   @Column({ type: 'text' })
   denominacion: string;
-
-  // ========== DENOMINACIÓN (CR-005) ==========
-  /**
-   * Los productos anteriores al CR-005 quedan como MANUAL: sus nombres los
-   * escribió una persona y no deben regenerarse sin que alguien lo pida.
-   */
+  
   @Column({
     type: 'varchar',
     length: 20,
@@ -87,10 +91,7 @@ export class Producto {
   @Column({ type: 'int', nullable: true })
   proveedorId?: number;
 
-  /*
-  Nota: No usar el enum alciculta iva en @Column
-        sino no anda el importar precios 
-  */
+  /*Nota: No usar el enum alciculta iva en @Column sino no anda el importar precios */
   @PorcentajeColumn(21.0)
   alicuotaIva: AlicuotaIva;
 
@@ -113,9 +114,7 @@ export class Producto {
   @MonetarioColumn()
   costoDolar?: number;
 
-  /*
-  Ultima cotizacion dolar por el cambio de precio si producto posee costo dolar
-  */
+  /*Ultima cotizacion dolar por el cambio de precio si producto posee costo dolar*/
   @MonetarioColumn()
   cotizacionDolar?: number;
   //se utiliza en las importaciones;
@@ -213,13 +212,6 @@ export class Producto {
   @Column({ type: 'text', nullable: true })
   codigoReferencia?: string | null;
 
-  /**
-   * Calcula el precio de venta a partir del costo y el porcentaje de margen:
-   * precio = costo + (costo * porcentaje / 100).
-   * Deja el resultado asignado en `this.precio` y lo devuelve.
-   */
-
-
   calcularPrecio(): number {
   const costo = this.costo ?? 0;
   const porcentaje = this.porcentaje ?? 0;
@@ -236,10 +228,47 @@ export class Producto {
   return this.precio;
 }
 
-  /**
-   * Simula el resultado de aplicar un ajuste masivo de precio (CR-006), sin
-   * mutar el estado de la entidad. Quien llama decide si aplica el resultado.
-   */
+  obtenerDatosPrecio(): DatosPrecioProducto {
+    return {
+      precio: this.precio ?? 0,
+      costo: this.costo ?? 0,
+      costoDolar: this.costoDolar ?? 0,
+      cotizacionDolar: this.cotizacionDolar ?? 0,
+      porcentaje: this.porcentaje ?? 0,
+    };
+  }
+
+  actualizarCostoYMargen(cambios: {
+    costo?: number;
+    porcentaje?: number;
+    // SIN USO por ahora: el costo en dólares no participa del precio.
+    // costoDolar?: number;
+    // cotizacionDolar?: number;
+  }): void {
+    if (cambios.costo !== undefined && cambios.costo !== this.costo) {
+      this.costo = cambios.costo;
+      this.fechaCosto = new Date();
+    }
+    // SIN USO por ahora. Se comenta (no se borra) para referencia.
+    //
+    // if (
+    //   cambios.costoDolar !== undefined &&
+    //   cambios.costoDolar !== this.costoDolar
+    // ) {
+    //   this.costoDolar = cambios.costoDolar;
+    //   this.fechaCostoDolar = new Date();
+    // }
+    // if (cambios.cotizacionDolar !== undefined) {
+    //   this.cotizacionDolar = cambios.cotizacionDolar;
+    // }
+    if (cambios.porcentaje !== undefined) {
+      this.porcentaje = cambios.porcentaje;
+    }
+
+    this.calcularPrecio();
+  }
+
+  /* Simula el resultado de aplicar un ajuste masivo de precio (CR-006), sin mutar el estado de la entidad. Quien llama decide si aplica el resultado.*/
   simularAjustePrecio(
     tipoAjuste: 'porcentaje' | 'monto',
     valor: number,
@@ -261,11 +290,7 @@ export class Producto {
     };
   }
 
-  /**
-   * Aplica un ajuste masivo de precio (CR-006), mutando la entidad. Reutiliza
-   * el mismo cálculo que simularAjustePrecio(); si el resultado no es válido,
-   * rechaza el ajuste sin modificar el estado.
-   */
+  /* Aplica un ajuste masivo de precio (CR-006), mutando la entidad. */
   aplicarAjustePrecio(tipoAjuste: 'porcentaje' | 'monto', valor: number): void {
     const { precioResultante, porcentajeResultante, valido } =
       this.simularAjustePrecio(tipoAjuste, valor);
@@ -278,12 +303,6 @@ export class Producto {
     this.porcentaje = porcentajeResultante;
     this.calcularPrecio(); // el precio se deriva de costo + margen
   }
-
-  // =====================================================================
-  // Comportamiento de dominio
-  // =====================================================================
-
-  // ---------- Presentación (CR-002) ----------
 
   /** Reconstruye el Value Object a partir de sus columnas de persistencia. */
   obtenerPresentacion(): Presentacion | null {
@@ -305,21 +324,10 @@ export class Producto {
     this.presentacionUnidad = presentacion?.unidad ?? null;
   }
 
-  // ---------- Denominación (CR-005) ----------
-
-  /**
-   * Cualquier valor distinto de AUTOMATICA se trata como manual: ante la
-   * duda, no se pisa un nombre escrito por una persona.
-   */
   esDenominacionManual(): boolean {
     return this.origenDenominacion !== OrigenDenominacion.AUTOMATICA;
   }
 
-  /**
-   * US-10 / US-11: genera la denominación a partir de marca, línea y la
-   * presentación del propio producto, y deja el producto en modo automático.
-   * Se usa en el alta y en la acción "restaurar automática".
-   */
   generarDenominacionAutomatica(
     generador: GeneradorDenominacion,
     componentes: Omit<ComponentesDenominacion, 'presentacion'>,
@@ -331,12 +339,6 @@ export class Producto {
     this.origenDenominacion = OrigenDenominacion.AUTOMATICA;
   }
 
-  /**
-   * US-11: al cambiar marca, línea o presentación, la denominación se
-   * regenera solo si es automática. Una denominación manual no se sobrescribe.
-   *
-   * @returns true si la denominación fue regenerada.
-   */
   sincronizarDenominacion(
     generador: GeneradorDenominacion,
     componentes: Omit<ComponentesDenominacion, 'presentacion'>,
@@ -348,11 +350,6 @@ export class Producto {
     return true;
   }
 
-  /**
-   * US-11: el usuario reemplaza la denominación generada por un texto propio.
-   * El producto pasa a modo manual. Si el texto es inválido, el producto
-   * queda exactamente como estaba.
-   */
   renombrarManualmente(denominacion: string): void {
     const normalizada = Producto.normalizarDenominacion(denominacion);
 
@@ -371,14 +368,6 @@ export class Producto {
     this.origenDenominacion = OrigenDenominacion.MANUAL;
   }
 
-  /**
-   * Alta (US-10 / US-11): decide cómo nace la denominación.
-   * - Sin texto del usuario  → se genera y el producto queda AUTOMATICA.
-   * - Con texto del usuario  → se respeta y el producto queda MANUAL.
-   *
-   * Solo `undefined` significa "no ingresó nada". Un texto vacío es un
-   * intento de nombre inválido y se rechaza.
-   */
   inicializarDenominacion(
     generador: GeneradorDenominacion,
     componentes: Omit<ComponentesDenominacion, 'presentacion'>,
@@ -391,17 +380,6 @@ export class Producto {
     this.renombrarManualmente(denominacionIngresada);
   }
 
-  /**
-   * Edición (US-11): decide qué pasa con la denominación al guardar cambios.
-   * - Texto distinto del actual → el usuario la editó: pasa a MANUAL.
-   * - Sin texto, o igual al actual → no hubo edición del nombre: se
-   *   sincroniza (se regenera solo si es AUTOMATICA).
-   *
-   * Comparar contra el valor actual es necesario porque los formularios de
-   * edición reenvían todos los campos, incluido el nombre sin cambios.
-   *
-   * @returns true si la denominación cambió.
-   */
   actualizarDenominacion(
     generador: GeneradorDenominacion,
     componentes: Omit<ComponentesDenominacion, 'presentacion'>,

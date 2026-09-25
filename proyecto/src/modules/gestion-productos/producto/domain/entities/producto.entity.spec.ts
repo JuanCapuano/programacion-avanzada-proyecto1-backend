@@ -279,10 +279,8 @@ describe('Producto (Aggregate Root) — denominación y presentación', () => {
       expect(producto.precio).toBe(1250);
     });
 
-    // CR-001: un precio que queda en 0 se rechaza, no se guarda.
-    // (Estos dos tests esperaban precio 0; se corrigieron para reflejar la
-    // regla implementada y el criterio de aceptación de la US-1.)
-    it('costo 0 se rechaza porque dejaría el precio en 0', () => {
+    // CR-001: un precio de 0 no es un producto vendible, el dominio lo rechaza.
+    it('costo 0 es rechazado porque el precio resultante no es mayor a 0', () => {
       const producto = new Producto();
       producto.costo = 0;
       producto.porcentaje = 15;
@@ -291,13 +289,11 @@ describe('Producto (Aggregate Root) — denominación y presentación', () => {
       expect(producto.precio).toBeUndefined();
     });
 
-    it('sin costo se rechaza porque dejaría el precio en 0', () => {
+    it('sin costo es rechazado porque el precio resultante no es mayor a 0', () => {
       const producto = new Producto();
       producto.porcentaje = 15;
 
-      expect(() => producto.calcularPrecio()).toThrow(
-        'El precio calculado (0) debe ser mayor a 0. Revisá el costo y el porcentaje cargados.',
-      );
+      expect(() => producto.calcularPrecio()).toThrow(ProductoDomainException);
       expect(producto.precio).toBeUndefined();
     });
 

@@ -11,6 +11,7 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "ignoreDeprecations": "5.0",
+    "types":["jest","node", "multer"],
     "paths": {
       "src/*": ["src/*"]
     },

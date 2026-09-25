@@ -175,6 +175,9 @@ defineFeature(feature, (test) => {
   });
 
   // Pendiente: la búsqueda no contempla el nombre de la línea (CR-004).
+  // Pendiente: la coincidencia por nombre de línea la arma el query builder del
+  // adaptador de persistencia (SQL), que estas pruebas reemplazan por memoria.
+  // Se verifica con pruebas de integración contra la base.
   test.skip('Buscar productos por el nombre de su línea', ({
     given,
     and,

@@ -54,10 +54,10 @@ defineFeature(feature, (test) => {
     const nuevoCosto = costo ? Number(costo[1]) : costoActual;
     const nuevoMargen = margen ? Number(margen[1]) : margenActual;
 
+    // CR-007: el precio no se envía, lo recalcula el dominio con costo y margen.
     const cuerpo: Record<string, unknown> = {
       costo: nuevoCosto,
       porcentaje: nuevoMargen,
-      precio: nuevoCosto + (nuevoCosto * nuevoMargen) / 100,
       usuarioId: USUARIO_ID,
     };
     if (motivo) {

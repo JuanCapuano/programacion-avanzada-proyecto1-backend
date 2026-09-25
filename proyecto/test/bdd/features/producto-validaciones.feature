@@ -22,7 +22,7 @@ Feature: Validación de datos y cálculo del precio (CR-001)
   @valido
   Scenario: Al modificar el costo el precio se recalcula solo
     Given existe un producto con costo 1000 y margen 15
-    When modifico el costo del producto a 2000
+    When modifico el costo del producto a 2000 con el motivo "aumento del proveedor"
     Then el precio del producto es 2300
 
   @invalido
@@ -37,11 +37,10 @@ Feature: Validación de datos y cálculo del precio (CR-001)
       | -100  | 15     |
       | mil   | 15     |
 
-  # HALLAZGO: el sistema acepta hoy un margen negativo (responde 201). El criterio
-  # de aceptación de la US-1 pide rechazarlo con "El margen no puede ser negativo".
-  # Se deja documentado como pendiente hasta que se corrija la validación.
-  @invalido @pendiente
-  Scenario: Un margen negativo debería rechazarse
+  # Resuelto por el CR-001: el alta rechaza el margen negativo con el mensaje
+  # "El margen no puede ser negativo". Antes el sistema respondía 201.
+  @invalido
+  Scenario: Un margen negativo es rechazado
     When doy de alta un producto con costo 1000 y margen -20
     Then la operación es rechazada con el estado 400
     And no se guarda ningún producto

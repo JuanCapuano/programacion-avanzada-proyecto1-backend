@@ -9,6 +9,7 @@ import { ProductoValidationService } from 'src/modules/gestion-productos/product
 import { GeneradorDenominacion } from 'src/modules/gestion-productos/producto/domain/services/generador-denominacion.service';
 import { ProductoRelatedEntitiesValidator } from 'src/modules/gestion-productos/producto/infraestructure/validators/producto-related-entities.validator.ts';
 import { ProductoUniquenessValidator } from 'src/modules/gestion-productos/producto/infraestructure/validators/producto-uniqueness.validator.ts';
+import { SuperLineaService } from 'src/modules/gestion-productos/super-linea/application/services/super-linea.service';
 import { ProductoDeletePolicy } from 'src/modules/gestion-productos/producto/application/policies/producto-delete.policy';
 import { ProductoPersistenceAdapter } from 'src/modules/gestion-productos/producto/infraestructure/repositories/producto.persistence-adapters';
 import { Producto } from 'src/modules/gestion-productos/producto/domain/entities/producto.entity';
@@ -128,6 +129,19 @@ export class ContextoProducto {
           },
         },
         { provide: ProductoDeletePolicy, useValue: {} },
+        // CR-004: LineaService pasó a depender de SuperLineaService. La super
+        // línea queda fuera del alcance de estas features (tiene la suya
+        // propia), así que se responde siempre con una válida.
+        {
+          provide: SuperLineaService,
+          useValue: {
+            findById: async (id: number) => ({ id, denominacion: 'General' }),
+            findEntityById: async (id: number) => ({
+              id,
+              denominacion: 'General',
+            }),
+          },
+        },
         { provide: ProductoPersistenceAdapter, useValue: {} },
       ],
     })
@@ -237,11 +251,19 @@ export class ContextoProducto {
     const copiar = (e: Producto) => this.copiarProducto(e);
     const activos = () => productos.filter((p) => !p.deletedAt);
 
+    // Las columnas de precio son decimales: MySQL redondea al guardar y el
+    // repositorio en memoria hace lo mismo.
+    const comoEnLaBase = (n?: number | null) =>
+      n === null || n === undefined ? n : Number(n.toFixed(5));
+
     const guardar = (entity: Producto) => {
       // TypeORM completa estas columnas al guardar (@CreateDateColumn /
       // @UpdateDateColumn); el repositorio en memoria hace lo mismo.
       entity.createdAt = entity.createdAt ?? new Date();
       entity.updatedAt = new Date();
+      entity.precio = comoEnLaBase(entity.precio) as number;
+      entity.costo = comoEnLaBase(entity.costo) as number;
+      entity.porcentaje = comoEnLaBase(entity.porcentaje) as number;
 
       if (!entity.id) {
         entity.id = this.proximoIdProducto++;
@@ -323,58 +345,37 @@ export class ContextoProducto {
       },
 
       /**
-       * Reproduce la orquestación del adaptador real: calcula con el método de
-       * dominio Producto.simularAjustePrecio y rechaza toda la operación si
-       * algún producto quedaría con un precio inválido (CR-006).
+       * CR-006: el repositorio solo trae los productos del alcance. Quién es
+       * válido y cómo cambia el precio lo decide el dominio
+       * (Producto.aplicarAjustePrecio / simularAjustePrecio), invocado desde
+       * la capa de aplicación.
        */
-      actualizarPreciosMasivo: async (dto: {
-        tipoAjuste: 'porcentaje' | 'monto';
-        valor: number;
-        alcance: 'linea' | 'global';
-        lineaId?: number;
-      }) => {
-        const alcance = activos().filter((p) =>
-          dto.alcance === 'linea' ? p.lineaId === dto.lineaId : true,
-        );
-        const resultados = alcance.map((p) =>
-          copiar(p).simularAjustePrecio(dto.tipoAjuste, dto.valor),
-        );
-        const invalido = resultados.findIndex((r) => !r.valido);
-        if (invalido >= 0) {
-          throw new BadRequestException(
-            `La actualización dejaría el precio del producto "${alcance[invalido].denominacion}" en un valor inválido. Se rechaza la operación completa y ningún producto fue modificado.`,
-          );
-        }
-        // La columna es decimal(15,5): MySQL redondea al guardar, el repositorio
-        // en memoria hace lo mismo para no arrastrar ruido de punto flotante.
-        const comoEnLaBase = (n: number) => Number(n.toFixed(5));
-        alcance.forEach((p, i) => {
-          p.precio = comoEnLaBase(resultados[i].precioResultante);
-          p.porcentaje = comoEnLaBase(resultados[i].porcentajeResultante);
-        });
-        return alcance.length;
-      },
+      findParaAjusteMasivo: async (
+        alcance: 'linea' | 'global',
+        lineaId?: number,
+      ) =>
+        activos()
+          .filter((p) => (alcance === 'linea' ? p.lineaId === lineaId : true))
+          .map(copiar),
 
-      previsualizarActualizacionMasivo: async (dto: {
-        tipoAjuste: 'porcentaje' | 'monto';
-        valor: number;
-        alcance: 'linea' | 'global';
-        lineaId?: number;
-      }) => {
-        const alcance = activos().filter((p) =>
-          dto.alcance === 'linea' ? p.lineaId === dto.lineaId : true,
-        );
-        return alcance.map((p) => {
-          const r = copiar(p).simularAjustePrecio(dto.tipoAjuste, dto.valor);
-          return {
-            productoId: p.id,
-            denominacion: p.denominacion,
-            precioActual: p.precio ?? 0,
-            precioResultante: r.precioResultante,
-            porcentajeResultante: r.porcentajeResultante,
-            valido: r.valido,
-          };
+      saveMany: async (entities: Producto[]) => entities.map(guardar),
+
+      /**
+       * CR-007: productos e historial se guardan juntos. Acá no hay
+       * transacción real, pero se respeta el orden: si algo falla antes, este
+       * método no se llama y no queda ni el cambio de precio ni el historial.
+       */
+      guardarConHistorial: async (
+        productos: Producto[],
+        registros: RegistroHistorial[] = [],
+      ) => {
+        const guardados = productos.map(guardar);
+        registros.forEach((registro) => {
+          registro.id = this.proximoIdHistorial++;
+          registro.fecha = new Date();
+          this.historial.push(registro);
         });
+        return guardados;
       },
     };
   }

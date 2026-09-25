@@ -131,11 +131,15 @@ defineFeature(feature, (test) => {
     pasosDeFondo(given, and);
     pasoProductoExistente(given);
 
-    when(/^modifico el costo del producto a (.*)$/, async (costo: string) => {
-      ctx.respuesta = await ctx.http
-        .put(`/producto/${ctx.ultimoProducto.id}`)
-        .send({ costo: Number(costo), usuarioUpdatedId: USUARIO_ID });
-    });
+    // CR-007: si el cambio de costo mueve el precio, el motivo es obligatorio.
+    when(
+      /^modifico el costo del producto a (.*) con el motivo "(.*)"$/,
+      async (costo: string, motivo: string) => {
+        ctx.respuesta = await ctx.http
+          .put(`/producto/${ctx.ultimoProducto.id}`)
+          .send({ costo: Number(costo), motivo, usuarioUpdatedId: USUARIO_ID });
+      },
+    );
 
     verificarPrecio(then);
   });
@@ -179,8 +183,7 @@ defineFeature(feature, (test) => {
     });
   });
 
-  // Pendiente: documenta un criterio de aceptación que el sistema aún no cumple.
-  test.skip('Un margen negativo debería rechazarse', ({ given, and, when, then }) => {
+  test('Un margen negativo es rechazado', ({ given, and, when, then }) => {
     pasosDeFondo(given, and);
     pasoAltaDesdeTabla(when);
     verificarRechazo(then);

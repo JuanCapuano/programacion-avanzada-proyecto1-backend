@@ -1,7 +1,9 @@
-# CR-003 · NO IMPLEMENTADO en la rama develop al momento de escribir estas pruebas.
-# Los escenarios se derivan igual de los criterios de aceptación de las US 5, 6 y 7
-# para que queden documentados y listos para ejecutarse cuando se integre la rama
-# feature/CR-003. Se ejecutan como pruebas pendientes (no cuentan como aprobadas).
+# CR-003 · IMPLEMENTADO en develop (módulo super-linea: entidad, servicio y
+# endpoints; toda línea cuelga hoy de una superlínea).
+# Los escenarios quedan como pendientes porque el contexto de estas pruebas
+# todavía no levanta el controlador de superlínea ni su repositorio en memoria:
+# falta cablearlos, no la funcionalidad. Se derivan de los criterios de
+# aceptación de las US 5, 6 y 7 y no cuentan como aprobados.
 
 @pendiente
 Feature: SuperLínea (CR-003)

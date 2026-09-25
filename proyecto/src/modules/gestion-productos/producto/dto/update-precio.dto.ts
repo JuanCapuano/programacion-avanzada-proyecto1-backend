@@ -1,41 +1,54 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, Min } from "class-validator";
 
+/**
+ * CR-007: el precio no se envía. Se cambia el costo y/o el porcentaje de
+ * margen y el precio lo recalcula el dominio (Producto.calcularPrecio()).
+ * Los campos que no se envían conservan su valor actual.
+ */
 export class UpdatePrecioDto {
 
-  @ApiProperty({ example: 100.5, description: 'Costo en moneda local' })
+  @ApiPropertyOptional({ example: 100.5, description: 'Costo en moneda local' })
   @IsNumber()
   @Min(0, { message: 'El costo debe ser un número positivo o 0' })
-  costo: number;
-
-  @ApiProperty({ example: 50.25, description: 'Costo en dólares' })
-  @IsNumber()
-  @Min(0, { message: 'El costo en dólares debe ser un número positivo o 0' })
-  @IsOptional() 
-  costoDolar: number;
-
-
-  @ApiProperty({ example: 1500, description: 'Cotización del dólar' })
-  @IsNumber()
-  @Min(0, { message: 'La cotización del dólar debe ser un número positivo o 0' })
   @IsOptional()
-  cotizacionDolar: number;
+  costo?: number;
 
-  @ApiProperty({ example: 10, description: 'Porcentaje de margen' })
+  // SIN USO por ahora: el costo en dólares no participa del cálculo del precio.
+  // Se comenta (no se borra) para referencia.
+  //
+  // @ApiPropertyOptional({ example: 50.25, description: 'Costo en dólares' })
+  // @IsNumber()
+  // @Min(0, { message: 'El costo en dólares debe ser un número positivo o 0' })
+  // @IsOptional()
+  // costoDolar?: number;
+  //
+  // @ApiPropertyOptional({ example: 1500, description: 'Cotización del dólar' })
+  // @IsNumber()
+  // @Min(0, { message: 'La cotización del dólar debe ser un número positivo o 0' })
+  // @IsOptional()
+  // cotizacionDolar?: number;
+
+  @ApiPropertyOptional({ example: 10, description: 'Porcentaje de margen' })
   @IsNumber()
   @Min(0, { message: 'El porcentaje debe ser un número positivo o 0' })
-  porcentaje: number;
-
-  @ApiProperty({ example: 120.5, description: 'Precio de venta resultante (sin IVA)' })
-  @IsNumber()
-  @Min(0.00001, { message: 'El precio debe ser mayor a 0' })
-  precio: number;
-
-  @ApiProperty({ required: false })
-  @IsNumber()
-  @Min(0)
   @IsOptional()
-  precioAnterior?: number;
+  porcentaje?: number;
+
+  // DEPRECADO (CR-007): el precio ya no se recibe, lo calcula el dominio a
+  // partir de costo y porcentaje. El precio anterior lo toma el backend de la
+  // entidad antes del cambio. Se comenta (no se borra) para referencia.
+  //
+  // @ApiProperty({ example: 120.5, description: 'Precio de venta resultante (sin IVA)' })
+  // @IsNumber()
+  // @Min(0.00001, { message: 'El precio debe ser mayor a 0' })
+  // precio: number;
+  //
+  // @ApiProperty({ required: false })
+  // @IsNumber()
+  // @Min(0)
+  // @IsOptional()
+  // precioAnterior?: number;
 
   @ApiProperty({
     example: 'Aumento de costos del proveedor',

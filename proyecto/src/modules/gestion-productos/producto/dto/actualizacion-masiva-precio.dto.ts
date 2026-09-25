@@ -5,6 +5,9 @@ import {
   IsISBN,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
   NotEquals,
   ValidateIf,
   Min,
@@ -52,6 +55,16 @@ export class ActualizacionMasivaPrecioDto {
   @IsInt()
   @Min(1,{message:"lineaId deber ser mayor a 0"})
   lineaId?: number;
+
+  @ApiPropertyOptional({
+    example: 'Ajuste por inflación mensual',
+    description:
+      'Motivo del cambio (CR-007). Se registra en el historial de cada producto afectado. Si no se envía, se genera uno a partir del ajuste.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  motivo?: string;
 
   @IsInt({ message: 'usuarioId debe ser un número entero' })
   @Min(1, { message: 'usuarioId debe ser mayor a 0' })

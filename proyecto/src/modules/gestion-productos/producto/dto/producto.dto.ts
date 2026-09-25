@@ -13,9 +13,7 @@ import { AlicuotaIva } from 'src/modules/organizacion/enums/alicuota-iva.enum';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ReferenciaDto } from 'src/modules/common/dto/referencia.dto';
 import { OrigenDenominacion } from '../domain/enums/origen-denominacion.enum';
-/*
-Se Utiliza cuando se necesita la entidad producto
-*/
+
 export class ProductoDto {
   @ApiProperty({ example: 123 })
   @Type(() => Number)

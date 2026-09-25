@@ -1,7 +1,10 @@
-# CR-004 · PARCIALMENTE IMPLEMENTADO.
-# Hoy la búsqueda admite coincidencias parciales sobre la denominación (insensible
-# a mayúsculas) y filtros por marca y línea. La búsqueda por nombre de línea o de
-# superlínea todavía no existe: esos escenarios quedan marcados como @pendiente.
+# CR-004 · IMPLEMENTADO. La búsqueda admite coincidencias parciales sobre la
+# denominación (insensible a mayúsculas), el nombre de la línea y el de la
+# superlínea, además de los filtros por marca y línea.
+# Los dos escenarios que buscan por el nombre de la línea o de la superlínea
+# quedan @pendiente acá: esa coincidencia la resuelve el query builder del
+# adaptador de persistencia, que estas pruebas reemplazan por repositorios en
+# memoria. Corresponden a pruebas de integración contra la base.
 
 Feature: Búsqueda de productos (CR-004)
   Como administrador de catálogo

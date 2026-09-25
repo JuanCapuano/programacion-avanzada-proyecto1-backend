@@ -146,7 +146,8 @@ defineFeature(feature, (test) => {
     and(
       /^el resultado informa (\d+) productos actualizados$/,
       (cantidad: string) => {
-        expect(ctx.respuesta.body.total).toBe(Number(cantidad));
+        // La respuesta del ajuste masivo es un mensaje para el front.
+        expect(ctx.respuesta.body.mensaje).toContain(`${cantidad} producto`);
       },
     );
   });
