@@ -34,6 +34,7 @@ import { ProductoDeletePolicy } from '../policies/producto-delete.policy';
 import { GeneradorDenominacion } from '../../domain/services/generador-denominacion.service';
 import { Presentacion } from '../../domain/value-objects/presentacion.vo';
 import { UnidadMedida } from '../../domain/enums/unidad-medida.enum';
+import { TipoAjustePrecio } from '../../domain/enums/tipo-ajuste-precio.enum';
 import { PrevisualizarDenominacionDto } from '../../dto/previsualizar-denominacion.dto';
 import { DenominacionPrevisualizadaDto } from '../../dto/denominacion-previsualizada.dto';
 
@@ -214,6 +215,7 @@ export class ProductoService {
   }
 
   async actualizarPreciosMasivo(dto: ActualizacionMasivaPrecioDto) {
+    this.intrinsicValidationService.validarAjusteMasivo(dto.tipoAjuste, dto.valor);
 
     const usuario = await this.usuarioValidator.validarUsuarioExiste(dto.usuarioId)
 
@@ -246,16 +248,27 @@ export class ProductoService {
 
     await this.repository.guardarConHistorial(productos, historial);
 
-    return MessageFrontUtils.create(
+    return MessageFrontUtils.createdItem(
       `Se actualizaron los precios de ${productos.length} producto(s)`,
+      productos.length,
     );
   }
 
   /** Motivo por defecto del historial cuando el ajuste masivo no trae uno. */
   private motivoAjusteMasivo(dto: ActualizacionMasivaPrecioDto): string {
     const signo = dto.valor > 0 ? '+' : '';
-    const ajuste =
-      dto.tipoAjuste === 'porcentaje' ? `${signo}${dto.valor}%` : `${signo}$${dto.valor}`;
+    let ajuste: string;
+    switch (dto.tipoAjuste) {
+      case TipoAjustePrecio.COSTO_PORCENTUAL:
+        ajuste = `costo ${signo}${dto.valor}%`;
+        break;
+      case TipoAjustePrecio.COSTO_MONTO:
+        ajuste = `costo ${signo}$${dto.valor}`;
+        break;
+      case TipoAjustePrecio.MARGEN:
+        ajuste = `margen ${dto.valor}%`;
+        break;
+    }
     const alcance =
       dto.alcance === 'linea' ? `línea ${dto.lineaId}` : 'global';
     return `Actualización masiva de precios (${alcance}): ${ajuste}`;
@@ -265,6 +278,8 @@ export class ProductoService {
   async previsualizarActualizacionMasivo(
     dto: ActualizacionMasivaPrecioDto,
   ): Promise<PreviewActualizacionMasivaPrecioDto[]> {
+    this.intrinsicValidationService.validarAjusteMasivo(dto.tipoAjuste, dto.valor);
+
     if (dto.alcance === 'linea') {
       await this.lineaService.findEntityById(dto.lineaId as number);
     }
@@ -279,9 +294,12 @@ export class ProductoService {
       return {
         id: producto.id,
         denominacion: producto.denominacion,
+        costoActual: producto.costo ?? 0,
+        costoResultante: resultado.costoResultante,
+        porcentajeActual: producto.porcentaje ?? 0,
+        porcentajeResultante: resultado.porcentajeResultante,
         precioActual: producto.precio ?? 0,
         precioResultante: resultado.precioResultante,
-        porcentajeResultante: resultado.porcentajeResultante,
         valido: resultado.valido,
       };
     });

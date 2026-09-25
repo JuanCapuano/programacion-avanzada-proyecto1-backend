@@ -7,15 +7,24 @@ export class PreviewActualizacionMasivaPrecioDto {
   @ApiProperty({ example: 'coca-cola gaseosas 1.5 l', description: 'Denominación del producto' })
   denominacion: string;
 
+  @ApiProperty({ example: 80, description: 'Costo actual del producto, antes del ajuste' })
+  costoActual: number;
+
+  @ApiProperty({ example: 88, description: 'Costo que resultaría de aplicar el ajuste (igual al actual si se asigna margen)' })
+  costoResultante: number;
+
+  @ApiProperty({ example: 25, description: 'Margen actual del producto (%), antes del ajuste' })
+  porcentajeActual: number;
+
+  @ApiProperty({ example: 25, description: 'Margen que resultaría de aplicar el ajuste (%) (igual al actual si se ajusta el costo)' })
+  porcentajeResultante: number;
+
   @ApiProperty({ example: 100, description: 'Precio actual del producto, antes del ajuste' })
   precioActual: number;
 
-  @ApiProperty({ example: 110, description: 'Precio que resultaría de aplicar el ajuste' })
+  @ApiProperty({ example: 110, description: 'Precio que resultaría de aplicar el ajuste: costo × (1 + margen / 100)' })
   precioResultante: number;
 
-  @ApiProperty({ example: 25.5, description: 'Porcentaje de margen resultante sobre el costo' })
-  porcentajeResultante: number;
-
-  @ApiProperty({ example: true, description: 'Indica si el precio resultante es válido (> 0)' })
+  @ApiProperty({ example: true, description: 'Indica si el resultado es válido (costo > 0, margen ≥ 0 y precio > 0)' })
   valido: boolean;
 }

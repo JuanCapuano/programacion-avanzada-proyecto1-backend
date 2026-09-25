@@ -102,7 +102,7 @@ export interface IProductoRepository {
   /**
    * Trae los productos del alcance dado (línea puntual o todos), sin aplicar
    * ni calcular ningún ajuste: la decisión de qué es válido y la mutación de
-   * precio/porcentaje quedan en Producto.aplicarAjustePrecio() /
+   * costo/margen (y el recálculo del precio) quedan en Producto.aplicarAjustePrecio() /
    * simularAjustePrecio(), invocadas desde la capa de aplicación.
    */
   findParaAjusteMasivo(
