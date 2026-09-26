@@ -154,6 +154,28 @@ defineFeature(feature, (test) => {
     });
   });
 
+  test('Al limpiar los filtros el listado vuelve a mostrar todos los productos', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    pasosDeFondo(given, and);
+
+    given(/^busco productos que contengan "(.*)"$/, async (texto: string) => {
+      await buscar(texto);
+      expect(ctx.respuesta.body.data).toHaveLength(1);
+    });
+
+    when(/^consulto el listado sin filtros$/, async () => {
+      await buscar();
+    });
+
+    then(/^el listado contiene (\d+) productos$/, (cantidad: string) => {
+      expect(ctx.respuesta.body.data).toHaveLength(Number(cantidad));
+    });
+  });
+
   test('Una búsqueda sin coincidencias devuelve un listado vacío', ({
     given,
     and,

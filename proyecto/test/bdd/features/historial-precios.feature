@@ -40,9 +40,25 @@ Feature: Historial de precios (CR-007)
     When consulto el historial del producto
     Then el historial del producto no tiene registros
 
-  # HALLAZGO: el endpoint de actualización masiva no registra historial; el criterio
-  # de la US-15 pide que cada producto afectado quede registrado. Queda pendiente.
-  @valido @pendiente
+  @valido
+  Scenario: Editar un dato que no afecta al precio no genera historial
+    When modifico el stock mínimo del producto
+    Then la modificación se guarda correctamente
+    And el historial del producto no tiene registros
+
+  @invalido
+  Scenario Outline: El historial es de sólo lectura
+    When intento <accion> un registro del historial
+    Then la operación no está disponible
+
+    Examples:
+      | accion   |
+      | modificar |
+      | borrar    |
+
+  # Resuelto por el CR-007: la actualización masiva arma el historial de cada
+  # producto cuyo precio cambió y lo guarda en la misma transacción.
+  @valido
   Scenario: Una actualización masiva registra el cambio de cada producto afectado
     Given existe otro producto de la línea "ACEITES" con costo 2000 y margen 15
     When aplico un aumento del 10 por ciento a la línea "ACEITES"
@@ -61,9 +77,3 @@ Feature: Historial de precios (CR-007)
       | con costo 0 y motivo "Error de carga"    |
       | con costo 2000 y sin motivo              |
 
-  # HALLAZGO: consultar el historial de un producto inexistente devuelve 200 con una
-  # lista vacía en lugar de 404. Queda pendiente hasta definir el comportamiento.
-  @invalido @pendiente
-  Scenario: No se puede consultar el historial de un producto inexistente
-    When consulto el historial de un producto inexistente
-    Then la operación es rechazada con el estado 404

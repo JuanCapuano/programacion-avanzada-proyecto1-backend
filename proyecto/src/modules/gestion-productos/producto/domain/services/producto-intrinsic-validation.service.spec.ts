@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { TipoAjustePrecio } from '../enums/tipo-ajuste-precio.enum';
 import { ProductoIntrinsicValidationService } from './producto-intrinsic-validation.service.ts';
 
 describe('ProductoIntrinsicValidationService - CR-001 costo', () => {
@@ -53,5 +54,62 @@ describe('ProductoIntrinsicValidationService - CR-001 margen', () => {
     expect(() => service.validarMargen(margen)).toThrow(
       new BadRequestException(mensaje),
     );
+  });
+});
+
+/**
+ * CR-006: el valor del ajuste masivo se valida antes de tocar ningún producto, y
+ * la regla depende del tipo de ajuste: asignar un margen admite 0, pero ajustar
+ * el costo en 0 no produce cambios y un -100% dejaría el costo en 0.
+ */
+describe('ProductoIntrinsicValidationService - CR-006 ajuste masivo', () => {
+  const service = new ProductoIntrinsicValidationService();
+
+  it.each([
+    [TipoAjustePrecio.COSTO_PORCENTUAL, 10],
+    [TipoAjustePrecio.COSTO_PORCENTUAL, -50],
+    [TipoAjustePrecio.COSTO_MONTO, 20],
+    [TipoAjustePrecio.COSTO_MONTO, -20],
+    [TipoAjustePrecio.MARGEN, 0],
+    [TipoAjustePrecio.MARGEN, 50],
+  ])('acepta %s con valor %s', (tipoAjuste, valor) => {
+    expect(() => service.validarAjusteMasivo(tipoAjuste, valor)).not.toThrow();
+  });
+
+  it.each<[TipoAjustePrecio, number, string]>([
+    [
+      TipoAjustePrecio.COSTO_PORCENTUAL,
+      0,
+      'El valor del ajuste no puede ser 0 porque no produce cambios',
+    ],
+    [
+      TipoAjustePrecio.COSTO_MONTO,
+      0,
+      'El valor del ajuste no puede ser 0 porque no produce cambios',
+    ],
+    [
+      TipoAjustePrecio.COSTO_PORCENTUAL,
+      -100,
+      'El porcentaje debe ser mayor a -100% (con -100% el costo quedaría en 0)',
+    ],
+    [
+      TipoAjustePrecio.COSTO_PORCENTUAL,
+      -150,
+      'El porcentaje debe ser mayor a -100% (con -100% el costo quedaría en 0)',
+    ],
+    [TipoAjustePrecio.MARGEN, -10, 'El margen no puede ser negativo'],
+  ])(
+    'rechaza %s con valor %s indicando el motivo',
+    (tipoAjuste, valor, mensaje) => {
+      expect(() => service.validarAjusteMasivo(tipoAjuste, valor)).toThrow(
+        new BadRequestException(mensaje),
+      );
+    },
+  );
+
+  it('un monto de -100 es válido: no es un porcentaje, solo resta al costo', () => {
+    expect(() =>
+      service.validarAjusteMasivo(TipoAjustePrecio.COSTO_MONTO, -100),
+    ).not.toThrow();
   });
 });

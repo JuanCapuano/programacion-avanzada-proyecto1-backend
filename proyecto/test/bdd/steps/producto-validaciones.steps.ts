@@ -26,13 +26,22 @@ defineFeature(feature, (test) => {
     return Number(valor);
   }
 
-  function margenDeTabla(valor: string): number | undefined {
-    return valor === 'sin margen' ? undefined : Number(valor);
+  function margenDeTabla(valor: string): unknown {
+    if (valor === 'sin margen') return undefined;
+    if (valor === 'abc') return 'abc';
+    return Number(valor);
+  }
+
+  /** El filtro global concatena los mensajes del ValidationPipe en `message`. */
+  function verificarMensaje(paso: any) {
+    paso(/^el mensaje de error indica "(.*)"$/, (mensaje: string) => {
+      expect(ctx.respuesta.body.message).toContain(mensaje);
+    });
   }
 
   async function altaDeProducto(opciones: {
     costo?: unknown;
-    margen?: number;
+    margen?: unknown;
     marcaId?: number | undefined;
     lineaId?: number | undefined;
   }) {
@@ -144,7 +153,7 @@ defineFeature(feature, (test) => {
     verificarPrecio(then);
   });
 
-  test('El alta rechaza costos y márgenes inválidos', ({
+  test('El alta rechaza costos y márgenes inválidos indicando el motivo', ({
     given,
     and,
     when,
@@ -153,6 +162,7 @@ defineFeature(feature, (test) => {
     pasosDeFondo(given, and);
     pasoAltaDesdeTabla(when);
     verificarRechazo(then);
+    verificarMensaje(and);
 
     and(/^no se guarda ningún producto$/, () => {
       expect(ctx.productos).toHaveLength(0);
@@ -175,6 +185,7 @@ defineFeature(feature, (test) => {
     });
 
     verificarRechazo(then);
+    verificarMensaje(and);
     and(/^el costo del producto sigue siendo (.*)$/, (costo: string) => {
       expect(Number(ctx.ultimoProducto.costo)).toBe(Number(costo));
     });
@@ -183,14 +194,6 @@ defineFeature(feature, (test) => {
     });
   });
 
-  test('Un margen negativo es rechazado', ({ given, and, when, then }) => {
-    pasosDeFondo(given, and);
-    pasoAltaDesdeTabla(when);
-    verificarRechazo(then);
-    and(/^no se guarda ningún producto$/, () => {
-      expect(ctx.productos).toHaveLength(0);
-    });
-  });
 
   test('La marca y la línea son obligatorias y deben existir', ({
     given,

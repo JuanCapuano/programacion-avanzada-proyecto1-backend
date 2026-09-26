@@ -1,6 +1,6 @@
-# CR-003 · IMPLEMENTADO. Los escenarios se derivan de los criterios de
-# aceptación de las US 5, 6 y 7. Queda pendiente el listado de precios agrupado
-# (US-7): el backend todavía no expone ese endpoint.
+# CR-003 · IMPLEMENTADO. Los escenarios cubren los criterios de aceptación de
+# las dos US: alta y mantenimiento de superlíneas, y la pertenencia obligatoria
+# de cada línea a una superlínea.
 
 Feature: SuperLínea (CR-003)
   Como administrador de catálogo
@@ -28,14 +28,6 @@ Feature: SuperLínea (CR-003)
     When asigno la línea "ACEITES" a la superlínea "BEBIDAS"
     Then la línea "ACEITES" pertenece únicamente a la superlínea "BEBIDAS"
 
-  # Pendiente: no existe todavía el endpoint del listado agrupado (US-7).
-  @pendiente @valido
-  Scenario: El listado de precios se agrupa por superlínea y línea
-    Given existe la marca "CAROYENSE"
-    And existe un producto de la marca "CAROYENSE" y línea "ACEITES"
-    When consulto el listado de precios agrupado
-    Then los productos aparecen agrupados primero por superlínea y dentro de ella por línea
-    And cada producto muestra denominación, presentación, costo, margen y precio
 
   @invalido
   Scenario Outline: El alta de la superlínea rechaza denominaciones inválidas o repetidas

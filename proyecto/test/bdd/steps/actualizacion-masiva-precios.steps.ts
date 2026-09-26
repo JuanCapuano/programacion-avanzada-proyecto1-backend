@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { defineFeature, loadFeature } from 'jest-cucumber';
+import { TipoAjustePrecio } from 'src/modules/gestion-productos/producto/domain/enums/tipo-ajuste-precio.enum';
 import { ContextoProducto } from '../support/contexto-producto';
 
 const feature = loadFeature(
@@ -10,21 +11,23 @@ const USUARIO_ID = 9;
 
 defineFeature(feature, (test) => {
   let ctx: ContextoProducto;
-  /** Precio inicial de cada producto -> id, para poder identificarlos después. */
-  let porPrecioInicial: Map<number, number>;
+  /** Costo con el que se dio de alta cada producto -> id, para identificarlos. */
+  let porCostoInicial: Map<number, number>;
+  /** Productos de la línea ACEITES, los que reciben los ajustes por línea. */
+  let idsAceites: number[];
 
   beforeEach(async () => {
     ctx = new ContextoProducto();
     await ctx.iniciar();
-    porPrecioInicial = new Map();
+    porCostoInicial = new Map();
+    idsAceites = [];
   });
 
   afterEach(async () => {
     await ctx.cerrar();
   });
 
-  /** Crea un producto cuyo precio final es exactamente el pedido (margen 0). */
-  async function altaConPrecio(linea: string, precio: number) {
+  async function altaConCostoYMargen(linea: string, costo: number, margen: number) {
     ctx.respuesta = await ctx.http.post('/producto').send({
       marcaId: ctx.idMarca('CAROYENSE'),
       lineaId: ctx.idLinea(linea),
@@ -32,28 +35,46 @@ defineFeature(feature, (test) => {
       utilizaStockMinimo: false,
       utilizaPack: false,
       usuarioCreatedId: USUARIO_ID,
-      costo: precio,
-      porcentaje: 0,
+      costo,
+      porcentaje: margen,
       presentacionCantidad: ctx.productos.length + 1,
       presentacionUnidad: 'l',
     });
     expect(ctx.respuesta.status).toBe(201);
-    porPrecioInicial.set(precio, ctx.ultimoProducto.id);
+    porCostoInicial.set(costo, ctx.ultimoProducto.id);
+    if (linea === 'ACEITES') {
+      idsAceites.push(ctx.ultimoProducto.id);
+    }
   }
 
-  function tipoAjuste(tipo: string): 'porcentaje' | 'monto' {
-    return tipo.includes('ciento') ? 'porcentaje' : 'monto';
+  function productoDeCosto(costoInicial: number) {
+    return ctx.productoPorId(porCostoInicial.get(costoInicial) as number);
   }
 
-  async function aplicarAjuste(cuerpo: Record<string, unknown>) {
+  async function aplicar(cuerpo: Record<string, unknown>) {
     ctx.respuesta = await ctx.http
-      .put('/producto/precios/actualizacion-masiva')
+      .post('/producto/precios/actualizacion-masiva')
       .send({ usuarioId: USUARIO_ID, ...cuerpo });
   }
 
-  function precioDe(id: number | undefined): number {
-    return Number(ctx.productoPorId(id as number)?.precio ?? 0);
+  async function previsualizar(cuerpo: Record<string, unknown>) {
+    ctx.respuesta = await ctx.http
+      .post('/producto/precios/actualizacion-masiva/preview')
+      .send({ usuarioId: USUARIO_ID, ...cuerpo });
   }
+
+  function alcanceLinea(linea: string) {
+    return { alcance: 'linea', lineaId: ctx.idLinea(linea) };
+  }
+
+  /** "por ciento" ajusta el costo en %, "pesos" le suma o resta un monto fijo. */
+  function tipoDeAjusteDelCosto(tipo: string): TipoAjustePrecio {
+    return tipo.includes('ciento')
+      ? TipoAjustePrecio.COSTO_PORCENTUAL
+      : TipoAjustePrecio.COSTO_MONTO;
+  }
+
+  // ------------------------------------------------------------------ pasos
 
   function pasosDeFondo(given: any, and: any) {
     given(/^existe la marca "(.*)"$/, (nombre: string) =>
@@ -65,142 +86,245 @@ defineFeature(feature, (test) => {
     and(/^existe la línea "(.*)"$/, (nombre: string) =>
       ctx.darDeAltaLinea(nombre),
     );
-    and(
-      /^existe un producto de la línea "(.*)" con precio (\d+)$/,
-      async (linea: string, precio: string) =>
-        altaConPrecio(linea, Number(precio)),
-    );
-    and(
-      /^existe un producto de la línea "(.*)" con precio (\d+)$/,
-      async (linea: string, precio: string) =>
-        altaConPrecio(linea, Number(precio)),
-    );
-    and(
-      /^existe un producto de la línea "(.*)" con precio (\d+)$/,
-      async (linea: string, precio: string) =>
-        altaConPrecio(linea, Number(precio)),
+    for (let i = 0; i < 3; i++) {
+      and(
+        /^existe un producto de la línea "(.*)" con costo (\d+) y margen (\d+)$/,
+        async (linea: string, costo: string, margen: string) =>
+          altaConCostoYMargen(linea, Number(costo), Number(margen)),
+      );
+    }
+  }
+
+  function pasoProductoAdicional(given: any) {
+    given(
+      /^existe un producto de la línea "(.*)" con costo (\d+) y margen (\d+)$/,
+      async (linea: string, costo: string, margen: string) =>
+        altaConCostoYMargen(linea, Number(costo), Number(margen)),
     );
   }
 
-  function pasoAjusteALinea(paso: any) {
-    paso(
-      /^aplico un (?:ajuste|aumento|descuento) de (-?\d+) (por ciento|pesos) a la línea "(.*)"$/,
+  function pasoAjusteDelCostoALinea(when: any) {
+    when(
+      /^aplico un ajuste de (-?\d+) (por ciento|pesos) a la línea "(.*)"$/,
       async (valor: string, tipo: string, linea: string) => {
-        const signo = /descuento/.test('descuento') ? 1 : 1;
-        await aplicarAjuste({
-          tipoAjuste: tipoAjuste(tipo),
-          valor: Number(valor) * signo,
-          alcance: 'linea',
-          lineaId: ctx.idLinea(linea),
+        await aplicar({
+          tipoAjuste: tipoDeAjusteDelCosto(tipo),
+          valor: Number(valor),
+          ...alcanceLinea(linea),
         });
       },
     );
   }
 
-  function verificarPrecioResultante(paso: any) {
+  function pasoAsignarMargenALinea(when: any) {
+    when(
+      /^asigno un margen de (-?\d+) a la línea "(.*)"$/,
+      async (valor: string, linea: string) => {
+        await aplicar({
+          tipoAjuste: TipoAjustePrecio.MARGEN,
+          valor: Number(valor),
+          ...alcanceLinea(linea),
+        });
+      },
+    );
+  }
+
+  function verificarOperacionCorrecta(paso: any) {
+    paso(/^la operación se realiza correctamente$/, () => {
+      expect(ctx.respuesta.status).toBe(201);
+    });
+  }
+
+  function verificarCostoYPrecio(paso: any) {
     paso(
-      /^el producto de precio (\d+) pasa a valer (\d+)$/,
-      (inicial: string, esperado: string) => {
-        expect(precioDe(porPrecioInicial.get(Number(inicial)))).toBe(
-          Number(esperado),
-        );
+      /^el producto de costo (\d+) (?:queda con|mantiene su) costo (\d+) y (?:su )?precio (\d+)$/,
+      (costoInicial: string, costo: string, precio: string) => {
+        const producto = productoDeCosto(Number(costoInicial));
+        expect(Number(producto?.costo)).toBe(Number(costo));
+        expect(Number(producto?.precio)).toBe(Number(precio));
+      },
+    );
+  }
+
+  function verificarMargenDeLosAjustados(paso: any) {
+    paso(
+      /^el margen de los productos ajustados sigue siendo (\d+)$/,
+      (margen: string) => {
+        for (const id of idsAceites) {
+          expect(Number(ctx.productoPorId(id)?.porcentaje)).toBe(Number(margen));
+        }
+      },
+    );
+  }
+
+  function verificarCantidadInformada(paso: any) {
+    paso(
+      /^el resultado informa (\d+) productos actualizados$/,
+      (cantidad: string) => {
+        expect(ctx.respuesta.body.mensaje).toContain(`${cantidad} producto`);
+      },
+    );
+  }
+
+  function verificarRechazo(paso: any) {
+    paso(
+      /^la operación es rechazada con el estado (\d+)$/,
+      (estado: string) => {
+        expect(ctx.respuesta.status).toBe(Number(estado));
       },
     );
   }
 
   // ------------------------------------------------------------ escenarios
 
-  test('Aplicar un ajuste válido por porcentaje o por monto', ({
+  test('Un ajuste porcentual cambia el costo y recalcula el precio', ({
     given,
     and,
     when,
     then,
   }) => {
     pasosDeFondo(given, and);
-    pasoAjusteALinea(when);
-
-    then(/^la operación se realiza correctamente$/, () => {
-      expect(ctx.respuesta.status).toBe(200);
-    });
-    verificarPrecioResultante(and);
-    verificarPrecioResultante(and);
+    pasoAjusteDelCostoALinea(when);
+    verificarOperacionCorrecta(then);
+    verificarCostoYPrecio(and);
+    verificarCostoYPrecio(and);
+    verificarMargenDeLosAjustados(and);
   });
 
-  test('El ajuste por línea no afecta a los productos de otras líneas', ({
+  test('El ajuste por línea no modifica los productos de otras líneas', ({
     given,
     and,
     when,
     then,
   }) => {
     pasosDeFondo(given, and);
-    pasoAjusteALinea(when);
-
-    then(
-      /^el producto de la línea "(.*)" mantiene su precio (\d+)$/,
-      (_linea: string, precio: string) => {
-        expect(precioDe(porPrecioInicial.get(Number(precio)))).toBe(
-          Number(precio),
-        );
-      },
-    );
-    and(
-      /^el resultado informa (\d+) productos actualizados$/,
-      (cantidad: string) => {
-        // La respuesta del ajuste masivo es un mensaje para el front.
-        expect(ctx.respuesta.body.mensaje).toContain(`${cantidad} producto`);
-      },
-    );
+    pasoAjusteDelCostoALinea(when);
+    verificarCostoYPrecio(then);
+    verificarCantidadInformada(and);
   });
 
-  test('Aplicar un ajuste a todo el catálogo', ({ given, and, when, then }) => {
+  test('El ajuste global modifica todos los productos del catálogo', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
     pasosDeFondo(given, and);
 
     when(
       /^aplico un ajuste de (-?\d+) (por ciento|pesos) a todo el catálogo$/,
       async (valor: string, tipo: string) => {
-        await aplicarAjuste({
-          tipoAjuste: tipoAjuste(tipo),
+        await aplicar({
+          tipoAjuste: tipoDeAjusteDelCosto(tipo),
           valor: Number(valor),
           alcance: 'global',
         });
       },
     );
 
-    verificarPrecioResultante(then);
-    and(
-      /^el producto de la línea "(.*)" pasa a valer (\d+)$/,
-      (_linea: string, esperado: string) => {
-        expect(precioDe(porPrecioInicial.get(200))).toBe(Number(esperado));
-      },
-    );
+    verificarCostoYPrecio(then);
+    verificarCostoYPrecio(and);
+    verificarCantidadInformada(and);
   });
 
-  test('El margen de cada producto queda recalculado después del ajuste', ({
+  test('Sumar un monto fijo al costo de una línea', ({
     given,
     and,
     when,
     then,
   }) => {
     pasosDeFondo(given, and);
-    pasoAjusteALinea(when);
-
-    then(
-      /^el margen de cada producto afectado refleja su nuevo precio$/,
-      () => {
-        for (const precioInicial of [100, 500]) {
-          const producto = ctx.productoPorId(
-            porPrecioInicial.get(precioInicial) as number,
-          );
-          const costo = Number(producto?.costo ?? 0);
-          const precio = Number(producto?.precio ?? 0);
-          const margenEsperado = (precio / costo - 1) * 100;
-          expect(Number(producto?.porcentaje)).toBeCloseTo(margenEsperado, 5);
-        }
-      },
-    );
+    pasoAjusteDelCostoALinea(when);
+    verificarCostoYPrecio(then);
+    verificarCostoYPrecio(and);
+    verificarMargenDeLosAjustados(and);
   });
 
-  test('Previsualizar un ajuste muestra el precio actual y el resultante sin modificar nada', ({
+  test('Sumar un monto fijo a todo el catálogo', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    pasosDeFondo(given, and);
+
+    when(
+      /^aplico un ajuste de (-?\d+) (por ciento|pesos) a todo el catálogo$/,
+      async (valor: string, tipo: string) => {
+        await aplicar({
+          tipoAjuste: tipoDeAjusteDelCosto(tipo),
+          valor: Number(valor),
+          alcance: 'global',
+        });
+      },
+    );
+
+    verificarCostoYPrecio(then);
+    verificarCostoYPrecio(and);
+    verificarCantidadInformada(and);
+  });
+
+  test('Asignar un margen nuevo mantiene el costo y recalcula el precio', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    pasosDeFondo(given, and);
+    pasoAsignarMargenALinea(when);
+    verificarCostoYPrecio(then);
+    verificarCostoYPrecio(and);
+    verificarMargenDeLosAjustados(and);
+    verificarCantidadInformada(and);
+  });
+
+  test('Asignar un margen uniforma productos que tenían márgenes distintos', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    pasosDeFondo(given, and);
+    pasoProductoAdicional(given);
+    pasoAsignarMargenALinea(when);
+    verificarCostoYPrecio(then);
+    verificarCostoYPrecio(and);
+    verificarMargenDeLosAjustados(and);
+  });
+
+  test('Asignar un margen a todo el catálogo', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    pasosDeFondo(given, and);
+
+    when(/^asigno un margen de (-?\d+) a todo el catálogo$/, async (valor: string) => {
+      await aplicar({
+        tipoAjuste: TipoAjustePrecio.MARGEN,
+        valor: Number(valor),
+        alcance: 'global',
+      });
+    });
+
+    verificarCostoYPrecio(then);
+    verificarCantidadInformada(and);
+  });
+
+  test('Un margen de 0 deja el precio igual al costo', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    pasosDeFondo(given, and);
+    pasoAsignarMargenALinea(when);
+    verificarCostoYPrecio(then);
+    verificarCostoYPrecio(and);
+  });
+
+  test('La previsualización muestra el precio actual, el resultante y el estado de cada producto', ({
     given,
     and,
     when,
@@ -211,15 +335,11 @@ defineFeature(feature, (test) => {
     when(
       /^previsualizo un ajuste de (-?\d+) (por ciento|pesos) sobre la línea "(.*)"$/,
       async (valor: string, tipo: string, linea: string) => {
-        ctx.respuesta = await ctx.http
-          .post('/producto/precios/actualizacion-masiva/preview')
-          .send({
-            tipoAjuste: tipoAjuste(tipo),
-            valor: Number(valor),
-            alcance: 'linea',
-            lineaId: ctx.idLinea(linea),
-            usuarioId: USUARIO_ID,
-          });
+        await previsualizar({
+          tipoAjuste: tipoDeAjusteDelCosto(tipo),
+          valor: Number(valor),
+          ...alcanceLinea(linea),
+        });
       },
     );
 
@@ -230,47 +350,153 @@ defineFeature(feature, (test) => {
         expect(ctx.respuesta.body).toHaveLength(Number(cantidad));
       },
     );
+
     and(
-      /^la previsualización muestra el precio actual y el precio resultante de cada producto$/,
+      /^cada producto previsualizado muestra su precio actual, su precio resultante y su estado$/,
       () => {
         for (const item of ctx.respuesta.body) {
           expect(item.precioActual).toBeDefined();
           expect(item.precioResultante).toBeDefined();
+          expect(typeof item.valido).toBe('boolean');
         }
       },
     );
+
     and(
-      /^el producto de precio (\d+) mantiene su precio (\d+)$/,
-      (inicial: string, esperado: string) => {
-        expect(precioDe(porPrecioInicial.get(Number(inicial)))).toBe(
-          Number(esperado),
-        );
+      /^el producto de costo (\d+) se previsualiza con precio actual (\d+) y precio resultante (\d+)$/,
+      (costoInicial: string, actual: string, resultante: string) => {
+        const id = porCostoInicial.get(Number(costoInicial));
+        const item = ctx.respuesta.body.find((p: { id: number }) => p.id === id);
+        expect(Number(item.precioActual)).toBe(Number(actual));
+        expect(Number(item.precioResultante)).toBe(Number(resultante));
       },
     );
   });
 
-  test('Un ajuste que dejaría algún precio en cero o negativo rechaza toda la operación', ({
+  test('Previsualizar no modifica ningún producto', ({
     given,
     and,
     when,
     then,
   }) => {
     pasosDeFondo(given, and);
-    pasoAjusteALinea(when);
 
-    then(/^la operación es rechazada$/, () => {
-      expect(ctx.respuesta.status).toBeGreaterThanOrEqual(400);
-    });
+    when(
+      /^previsualizo una asignación de margen de (-?\d+) sobre la línea "(.*)"$/,
+      async (valor: string, linea: string) => {
+        await previsualizar({
+          tipoAjuste: TipoAjustePrecio.MARGEN,
+          valor: Number(valor),
+          ...alcanceLinea(linea),
+        });
+      },
+    );
+
+    then(
+      /^la previsualización muestra (\d+) productos afectados$/,
+      (cantidad: string) => {
+        expect(ctx.respuesta.body).toHaveLength(Number(cantidad));
+      },
+    );
+    verificarCostoYPrecio(and);
+    verificarCostoYPrecio(and);
+  });
+
+  test('La previsualización marca inválido el producto que quedaría con costo en cero o menos', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    pasosDeFondo(given, and);
+    pasoProductoAdicional(given);
+
+    when(
+      /^previsualizo un ajuste de (-?\d+) (por ciento|pesos) sobre la línea "(.*)"$/,
+      async (valor: string, tipo: string, linea: string) => {
+        await previsualizar({
+          tipoAjuste: tipoDeAjusteDelCosto(tipo),
+          valor: Number(valor),
+          ...alcanceLinea(linea),
+        });
+      },
+    );
+
+    then(
+      /^la previsualización muestra (\d+) productos afectados$/,
+      (cantidad: string) => {
+        expect(ctx.respuesta.status).toBe(201);
+        expect(ctx.respuesta.body).toHaveLength(Number(cantidad));
+      },
+    );
+
     and(
-      /^ningún producto de la línea "(.*)" cambió su precio$/,
-      () => {
-        expect(precioDe(porPrecioInicial.get(100))).toBe(100);
-        expect(precioDe(porPrecioInicial.get(500))).toBe(500);
+      /^el producto de costo (\d+) se previsualiza como inválido$/,
+      (costoInicial: string) => {
+        const id = porCostoInicial.get(Number(costoInicial));
+        const item = ctx.respuesta.body.find((p: { id: number }) => p.id === id);
+        expect(item.valido).toBe(false);
+      },
+    );
+
+    and(
+      /^la previsualización informa (\d+) producto inválido de (\d+)$/,
+      (invalidos: string, total: string) => {
+        const items = ctx.respuesta.body as { valido: boolean }[];
+        expect(items.filter((p) => !p.valido)).toHaveLength(Number(invalidos));
+        expect(items).toHaveLength(Number(total));
       },
     );
   });
 
-  test('El ajuste rechaza parámetros inválidos', ({
+  test('La previsualización rechaza valores que no producen un cambio válido', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    pasosDeFondo(given, and);
+
+    when(/^previsualizo (.*) sobre la línea "(.*)"$/, async (ajuste: string, linea: string) => {
+      const valor = Number(/(-?\d+)/.exec(ajuste)?.[1]);
+      const tipoAjuste = ajuste.includes('margen')
+        ? TipoAjustePrecio.MARGEN
+        : tipoDeAjusteDelCosto(ajuste);
+      await previsualizar({ tipoAjuste, valor, ...alcanceLinea(linea) });
+    });
+
+    verificarRechazo(then);
+  });
+
+  test('Un ajuste que dejaría un costo en cero o menos rechaza toda la operación', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    pasosDeFondo(given, and);
+    pasoAjusteDelCostoALinea(when);
+
+    then(/^la operación es rechazada$/, () => {
+      expect(ctx.respuesta.status).toBeGreaterThanOrEqual(400);
+    });
+    verificarCostoYPrecio(and);
+    verificarCostoYPrecio(and);
+  });
+
+  test('Asignar un margen negativo rechaza toda la operación', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    pasosDeFondo(given, and);
+    pasoAsignarMargenALinea(when);
+    verificarRechazo(then);
+    verificarCostoYPrecio(and);
+  });
+
+  test('El ajuste rechaza un alcance mal indicado', ({
     given,
     and,
     when,
@@ -282,21 +508,17 @@ defineFeature(feature, (test) => {
       /^aplico un ajuste de (-?\d+) por ciento con alcance (.*)$/,
       async (valor: string, alcance: string) => {
         const cuerpo: Record<string, unknown> = {
-          tipoAjuste: 'porcentaje',
+          tipoAjuste: TipoAjustePrecio.COSTO_PORCENTUAL,
           valor: Number(valor),
           alcance: 'linea',
         };
-        if (alcance.includes('ACEITES')) {
-          cuerpo.lineaId = ctx.idLinea('ACEITES');
-        } else if (alcance.includes('inexistente')) {
+        if (alcance.includes('inexistente')) {
           cuerpo.lineaId = 999;
         }
-        await aplicarAjuste(cuerpo);
+        await aplicar(cuerpo);
       },
     );
 
-    then(/^la operación es rechazada con el estado (\d+)$/, (estado: string) => {
-      expect(ctx.respuesta.status).toBe(Number(estado));
-    });
+    verificarRechazo(then);
   });
 });

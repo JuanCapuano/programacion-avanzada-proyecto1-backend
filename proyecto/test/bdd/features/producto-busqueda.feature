@@ -4,7 +4,9 @@
 # Los dos escenarios que buscan por el nombre de la línea o de la superlínea
 # quedan @pendiente acá: esa coincidencia la resuelve el query builder del
 # adaptador de persistencia, que estas pruebas reemplazan por repositorios en
-# memoria. Corresponden a pruebas de integración contra la base.
+# memoria. Esos casos, junto con los checkboxes que eligen en qué campos buscar,
+# están cubiertos por las pruebas de integración contra MySQL de
+# test/cr004.integration.cjs, que se ejecutan con la API y la base levantadas.
 
 Feature: Búsqueda de productos (CR-004)
   Como administrador de catálogo
@@ -46,6 +48,12 @@ Feature: Búsqueda de productos (CR-004)
   Scenario: El resultado informa la cantidad de productos encontrados
     When busco productos que contengan "aceite"
     Then el listado informa el total de productos encontrados
+
+  @valido
+  Scenario: Al limpiar los filtros el listado vuelve a mostrar todos los productos
+    Given busco productos que contengan "oliva"
+    When consulto el listado sin filtros
+    Then el listado contiene 2 productos
 
   @valido
   Scenario: Una búsqueda sin coincidencias devuelve un listado vacío

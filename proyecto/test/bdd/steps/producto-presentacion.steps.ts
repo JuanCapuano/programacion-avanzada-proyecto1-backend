@@ -179,21 +179,40 @@ defineFeature(feature, (test) => {
     verificarPresentacion(then);
   });
 
-  test('Modificar la presentación no altera el costo ni el precio del producto', ({
+  test('Modificar la presentación no altera el costo, el margen, el precio ni el stock', ({
     given,
     and,
     when,
     then,
   }) => {
+    let stockAnterior: number | undefined;
+
     pasosDeFondo(given, and);
     pasoProductoAutomatico(given);
-    pasoModificarPresentacion(when);
+
+    when(/^modifico la presentación del producto a (.*) "(.*)"$/, async (cantidad: string, unidad: string) => {
+      stockAnterior = ctx.ultimoProducto.stock;
+      ctx.respuesta = await ctx.http
+        .put(`/producto/${ctx.ultimoProducto.id}`)
+        .send({
+          presentacionCantidad: Number(cantidad),
+          presentacionUnidad: unidad,
+          usuarioUpdatedId: USUARIO_ID,
+        });
+      expect(ctx.respuesta.status).toBe(200);
+    });
 
     then(/^el costo del producto sigue siendo (.*)$/, (costo: string) => {
       expect(Number(ctx.ultimoProducto.costo)).toBe(Number(costo));
     });
     and(/^el precio del producto sigue siendo (.*)$/, (precio: string) => {
       expect(Number(ctx.ultimoProducto.precio)).toBe(Number(precio));
+    });
+    and(/^el margen del producto sigue siendo (.*)$/, (margen: string) => {
+      expect(Number(ctx.ultimoProducto.porcentaje)).toBe(Number(margen));
+    });
+    and(/^el stock del producto no cambió$/, () => {
+      expect(ctx.ultimoProducto.stock).toBe(stockAnterior);
     });
   });
 
