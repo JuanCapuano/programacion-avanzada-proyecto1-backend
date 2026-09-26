@@ -165,7 +165,13 @@ export class ProductoPersistenceAdapter implements IProductoRepository {
     const texto = filtros.texto?.trim();
     if (texto) {
       const literal = texto.replace(/[!%_]/g, (caracter) => `!${caracter}`);
-      query.andWhere(`(${Object.values(campos).map(
+      const seleccionados = [
+        filtros.buscarDenominacion !== false ? campos.denominacion : null,
+        filtros.buscarLinea !== false ? campos.linea : null,
+        filtros.buscarSuperLinea !== false ? campos.superLinea : null,
+      ].filter((campo) => campo !== null);
+      if (seleccionados.length === 0) return { data: [], total: 0 };
+      query.andWhere(`(${seleccionados.map(
         (campo) => `UPPER(${campo}) LIKE UPPER(:texto) ESCAPE '!'`,
       ).join(' OR ')})`, { texto: `%${literal}%` });
     }

@@ -1,11 +1,25 @@
 import { Transform, Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { FiltrosCatalogo } from '../domain/interfaces/filtros-catalogo';
 
 const recortar = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
+const booleano = ({ value }: { value: unknown }) =>
+  value === 'true' ? true : value === 'false' ? false : value;
 
 export class SearchCatalogoDto implements FiltrosCatalogo {
+  @Transform(booleano)
+  @IsBoolean()
+  buscarDenominacion: boolean = true;
+
+  @Transform(booleano)
+  @IsBoolean()
+  buscarLinea: boolean = true;
+
+  @Transform(booleano)
+  @IsBoolean()
+  buscarSuperLinea: boolean = true;
+
   @IsOptional()
   @Transform(recortar)
   @IsString()

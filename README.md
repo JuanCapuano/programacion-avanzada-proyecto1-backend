@@ -201,6 +201,10 @@ Todos los endpoints tienen el prefijo `/api`.
 Base: `feature/CR-003`. La relación utilizada es Producto → Línea → SuperLínea.
 `GET /api/producto/search-catalogo` requiere la misma autenticación y roles que la consulta de productos.
 El campo único de la interfaz envía `texto`: busca por Denominación, Línea o SuperLínea con OR.
+Los parámetros booleanos `buscarDenominacion`, `buscarLinea` y `buscarSuperLinea`
+permiten activar cada campo del texto único; su valor por defecto es `true`.
+Aceptan `true` o `false`; valores inválidos se rechazan. Con texto y los tres desactivados
+se devuelve una lista vacía. Un texto vacío no aplica búsqueda textual.
 Se mantienen los filtros independientes para compatibilidad.
 Parámetros opcionales: `texto`, `denominacion`, `linea`, `superLinea` (texto, hasta 255 caracteres).
 Se combinan con AND; cada uno busca coincidencias parciales, ignora mayúsculas y recorta espacios exteriores.
