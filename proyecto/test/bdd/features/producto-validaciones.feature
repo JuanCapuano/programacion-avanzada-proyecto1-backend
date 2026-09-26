@@ -26,30 +26,26 @@ Feature: Validación de datos y cálculo del precio (CR-001)
     Then el precio del producto es 2300
 
   @invalido
-  Scenario Outline: El alta rechaza costos y márgenes inválidos
+  Scenario Outline: El alta rechaza costos y márgenes inválidos indicando el motivo
     When doy de alta un producto con costo <costo> y margen <margen>
     Then la operación es rechazada con el estado 400
+    And el mensaje de error indica "<mensaje>"
     And no se guarda ningún producto
 
     Examples:
-      | costo | margen |
-      | 0     | 15     |
-      | -100  | 15     |
-      | mil   | 15     |
-
-  # Resuelto por el CR-001: el alta rechaza el margen negativo con el mensaje
-  # "El margen no puede ser negativo". Antes el sistema respondía 201.
-  @invalido
-  Scenario: Un margen negativo es rechazado
-    When doy de alta un producto con costo 1000 y margen -20
-    Then la operación es rechazada con el estado 400
-    And no se guarda ningún producto
+      | costo | margen | mensaje                         |
+      | 0     | 15     | El costo debe ser mayor a 0     |
+      | -100  | 15     | El costo debe ser mayor a 0     |
+      | mil   | 15     | El costo debe ser numérico      |
+      | 1000  | -20    | El margen no puede ser negativo |
+      | 1000  | abc    | El margen debe ser numérico     |
 
   @invalido
   Scenario: Un producto existente conserva su costo si se intenta guardar uno inválido
     Given existe un producto con costo 1000 y margen 15
     When modifico el costo del producto a -50
     Then la operación es rechazada con el estado 400
+    And el mensaje de error indica "El costo debe ser mayor a 0"
     And el costo del producto sigue siendo 1000
     And el precio del producto sigue siendo 1150
 

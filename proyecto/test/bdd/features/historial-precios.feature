@@ -40,6 +40,22 @@ Feature: Historial de precios (CR-007)
     When consulto el historial del producto
     Then el historial del producto no tiene registros
 
+  @valido
+  Scenario: Editar un dato que no afecta al precio no genera historial
+    When modifico el stock mínimo del producto
+    Then la modificación se guarda correctamente
+    And el historial del producto no tiene registros
+
+  @invalido
+  Scenario Outline: El historial es de sólo lectura
+    When intento <accion> un registro del historial
+    Then la operación no está disponible
+
+    Examples:
+      | accion   |
+      | modificar |
+      | borrar    |
+
   # Resuelto por el CR-007: la actualización masiva arma el historial de cada
   # producto cuyo precio cambió y lo guarda en la misma transacción.
   @valido
@@ -61,9 +77,3 @@ Feature: Historial de precios (CR-007)
       | con costo 0 y motivo "Error de carga"    |
       | con costo 2000 y sin motivo              |
 
-  # HALLAZGO: consultar el historial de un producto inexistente devuelve 200 con una
-  # lista vacía en lugar de 404. Queda pendiente hasta definir el comportamiento.
-  @invalido @pendiente
-  Scenario: No se puede consultar el historial de un producto inexistente
-    When consulto el historial de un producto inexistente
-    Then la operación es rechazada con el estado 404

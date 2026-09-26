@@ -150,28 +150,6 @@ defineFeature(feature, (test) => {
     );
   });
 
-  // Pendiente: el listado de precios agrupado por superlínea y línea (US-7)
-  // todavía no tiene endpoint en el backend.
-  test.skip('El listado de precios se agrupa por superlínea y línea', ({
-    given,
-    and,
-    when,
-    then,
-  }) => {
-    fondo(given, and);
-    given(/^existe la marca "(.*)"$/, () => {});
-    and(/^existe un producto de la marca "(.*)" y línea "(.*)"$/, () => {});
-    when(/^consulto el listado de precios agrupado$/, () => {});
-    then(
-      /^los productos aparecen agrupados primero por superlínea y dentro de ella por línea$/,
-      () => {},
-    );
-    and(
-      /^cada producto muestra denominación, presentación, costo, margen y precio$/,
-      () => {},
-    );
-  });
-
   test('El alta de la superlínea rechaza denominaciones inválidas o repetidas', ({
     given,
     and,

@@ -50,6 +50,12 @@ Feature: Búsqueda de productos (CR-004)
     Then el listado informa el total de productos encontrados
 
   @valido
+  Scenario: Al limpiar los filtros el listado vuelve a mostrar todos los productos
+    Given busco productos que contengan "oliva"
+    When consulto el listado sin filtros
+    Then el listado contiene 2 productos
+
+  @valido
   Scenario: Una búsqueda sin coincidencias devuelve un listado vacío
     When busco productos que contengan "zzzz"
     Then el listado contiene 0 productos

@@ -33,11 +33,13 @@ Feature: Presentación del producto (CR-002)
     Then la presentación del producto es 1.5 "l"
 
   @valido
-  Scenario: Modificar la presentación no altera el costo ni el precio del producto
+  Scenario: Modificar la presentación no altera el costo, el margen, el precio ni el stock
     Given existe un producto automático de la marca "CAROYENSE", línea "ACEITES" y presentación 1 "l"
     When modifico la presentación del producto a 1.5 "l"
     Then el costo del producto sigue siendo 1000
     And el precio del producto sigue siendo 1150
+    And el margen del producto sigue siendo 15
+    And el stock del producto no cambió
 
   @invalido
   Scenario Outline: El alta rechaza presentaciones inválidas o incompletas
