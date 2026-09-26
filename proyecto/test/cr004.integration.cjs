@@ -67,6 +67,26 @@ test('CR-004: búsquedas de catálogo contra API y MySQL locales', async (t) => 
       await comprobar({ texto: `${prefijo} beb` }, [coca, sprite, jugo]);
       await comprobar({ texto: `${prefijo} inexistente` }, []);
     });
+    await t.test('checkboxes limitan los campos del texto y conservan OR', async () => {
+      const ninguno = { buscarDenominacion: false, buscarLinea: false, buscarSuperLinea: false };
+      await comprobar({ ...ninguno, buscarDenominacion: true, texto: `${prefijo} Coca` }, [coca, dulce]);
+      await comprobar({ ...ninguno, buscarLinea: true, texto: `${prefijo} Coca` }, []);
+      await comprobar({ ...ninguno, buscarLinea: true, texto: `${prefijo} Gas` }, [coca, sprite]);
+      await comprobar({ ...ninguno, buscarSuperLinea: true, texto: `${prefijo} Gas` }, []);
+      await comprobar({ ...ninguno, buscarSuperLinea: true, texto: `${prefijo} Beb` }, [coca, sprite, jugo]);
+      await comprobar({ ...ninguno, buscarDenominacion: true, texto: `${prefijo} Beb` }, []);
+      await comprobar({ ...ninguno, buscarLinea: true, buscarSuperLinea: true, texto: `${prefijo} Beb` }, [coca, sprite, jugo]);
+      await comprobar({ ...ninguno, texto: prefijo }, []);
+      const primera = await consultar({ ...ninguno, buscarSuperLinea: true, texto: `${prefijo} Beb`, take: 1, skip: 0 });
+      const segunda = await consultar({ ...ninguno, buscarSuperLinea: true, texto: `${prefijo} Beb`, take: 1, skip: 1 });
+      assert.equal(primera.total, 3);
+      assert.equal(segunda.total, 3);
+      assert.notEqual(primera.data[0].id, segunda.data[0].id);
+    });
+    await t.test('checkbox inválido se rechaza', async () => {
+      const r = await fetch('http://127.0.0.1:3000/api/producto/search-catalogo?buscarLinea=abc', { headers });
+      assert.equal(r.status, 400);
+    });
     await t.test('paginación inválida se rechaza', async () => {
       const r = await fetch('http://127.0.0.1:3000/api/producto/search-catalogo?skip=-1&take=101', { headers });
       assert.equal(r.status, 400);
