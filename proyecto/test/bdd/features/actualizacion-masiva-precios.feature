@@ -42,6 +42,28 @@ Feature: Actualización masiva de precios (CR-006)
     Then el margen de cada producto afectado refleja su nuevo precio
 
   @valido
+  Scenario: Un ajuste sobre el costo conserva el margen del producto
+    Given existe un producto de la línea "ACEITES" con costo 1000 y margen 20
+    When aplico un ajuste de 10 por ciento a la línea "ACEITES"
+    Then el costo de ese producto pasa a 1100
+    And su margen sigue siendo 20
+    And su precio pasa a 1320
+
+  @valido
+  Scenario: Asignar un margen nuevo cambia el precio sin tocar el costo
+    Given existe un producto de la línea "ACEITES" con costo 1000 y margen 20
+    When asigno un margen de 50 a la línea "ACEITES"
+    Then el costo de ese producto sigue siendo 1000
+    And su margen pasa a 50
+    And su precio pasa a 1500
+
+  @invalido
+  Scenario: Un margen negativo rechaza toda la operación
+    When asigno un margen de -10 a la línea "ACEITES"
+    Then la operación es rechazada con el estado 400
+    And ningún producto de la línea "ACEITES" cambió su precio
+
+  @valido
   Scenario: Previsualizar un ajuste muestra el precio actual y el resultante sin modificar nada
     When previsualizo un ajuste de 10 por ciento sobre la línea "ACEITES"
     Then la previsualización muestra 2 productos afectados

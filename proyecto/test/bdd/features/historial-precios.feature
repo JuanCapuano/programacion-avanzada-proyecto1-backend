@@ -40,9 +40,9 @@ Feature: Historial de precios (CR-007)
     When consulto el historial del producto
     Then el historial del producto no tiene registros
 
-  # HALLAZGO: el endpoint de actualización masiva no registra historial; el criterio
-  # de la US-15 pide que cada producto afectado quede registrado. Queda pendiente.
-  @valido @pendiente
+  # Resuelto por el CR-007: la actualización masiva arma el historial de cada
+  # producto cuyo precio cambió y lo guarda en la misma transacción.
+  @valido
   Scenario: Una actualización masiva registra el cambio de cada producto afectado
     Given existe otro producto de la línea "ACEITES" con costo 2000 y margen 15
     When aplico un aumento del 10 por ciento a la línea "ACEITES"

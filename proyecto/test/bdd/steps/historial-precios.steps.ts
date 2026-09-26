@@ -1,6 +1,7 @@
 import * as path from 'path';
 import { defineFeature, loadFeature } from 'jest-cucumber';
 import { ContextoProducto } from '../support/contexto-producto';
+import { TipoAjustePrecio } from 'src/modules/gestion-productos/producto/domain/enums/tipo-ajuste-precio.enum';
 
 const feature = loadFeature(
   path.resolve(__dirname, '../features/historial-precios.feature'),
@@ -227,17 +228,54 @@ defineFeature(feature, (test) => {
   });
 
   // Pendiente: la actualización masiva todavía no registra historial.
-  test.skip('Una actualización masiva registra el cambio de cada producto afectado', ({
+  test('Una actualización masiva registra el cambio de cada producto afectado', ({
     given,
     and,
     when,
     then,
   }) => {
+    let idSegundoProducto: number;
+
     pasosDeFondo(given, and);
-    given(/^existe otro producto de la línea "(.*)" con costo (\d+) y margen (\d+)$/, async () => {});
-    when(/^aplico un aumento del (\d+) por ciento a la línea "(.*)"$/, async () => {});
-    then(/^el historial del primer producto tiene (\d+) registro$/, () => {});
-    and(/^el historial del segundo producto tiene (\d+) registro$/, () => {});
+
+    given(
+      /^existe otro producto de la línea "(.*)" con costo (\d+) y margen (\d+)$/,
+      async (_linea: string, costo: string, margen: string) => {
+        idSegundoProducto = await altaDeProducto(Number(costo), Number(margen));
+      },
+    );
+
+    when(
+      /^aplico un aumento del (\d+) por ciento a la línea "(.*)"$/,
+      async (porcentaje: string, linea: string) => {
+        ctx.respuesta = await ctx.http
+          .post('/producto/precios/actualizacion-masiva')
+          .send({
+            tipoAjuste: TipoAjustePrecio.COSTO_PORCENTUAL,
+            valor: Number(porcentaje),
+            alcance: 'linea',
+            lineaId: ctx.idLinea(linea),
+            usuarioId: USUARIO_ID,
+          });
+        expect(ctx.respuesta.status).toBe(201);
+      },
+    );
+
+    then(
+      /^el historial del primer producto tiene (\d+) registro$/,
+      (cantidad: string) => {
+        expect(ctx.historialDe(idProducto)).toHaveLength(Number(cantidad));
+      },
+    );
+
+    and(
+      /^el historial del segundo producto tiene (\d+) registro$/,
+      (cantidad: string) => {
+        expect(ctx.historialDe(idSegundoProducto)).toHaveLength(
+          Number(cantidad),
+        );
+      },
+    );
   });
 
   test('Un cambio de precio inválido es rechazado y no se registra', ({

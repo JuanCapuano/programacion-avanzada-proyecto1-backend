@@ -1,6 +1,7 @@
 import * as path from 'path';
 import { defineFeature, loadFeature } from 'jest-cucumber';
 import { ContextoProducto } from '../support/contexto-producto';
+import { TipoAjustePrecio } from 'src/modules/gestion-productos/producto/domain/enums/tipo-ajuste-precio.enum';
 
 const feature = loadFeature(
   path.resolve(__dirname, '../features/actualizacion-masiva-precios.feature'),
@@ -41,13 +42,15 @@ defineFeature(feature, (test) => {
     porPrecioInicial.set(precio, ctx.ultimoProducto.id);
   }
 
-  function tipoAjuste(tipo: string): 'porcentaje' | 'monto' {
-    return tipo.includes('ciento') ? 'porcentaje' : 'monto';
+  function tipoAjuste(tipo: string): TipoAjustePrecio {
+    return tipo.includes('ciento')
+      ? TipoAjustePrecio.COSTO_PORCENTUAL
+      : TipoAjustePrecio.COSTO_MONTO;
   }
 
   async function aplicarAjuste(cuerpo: Record<string, unknown>) {
     ctx.respuesta = await ctx.http
-      .put('/producto/precios/actualizacion-masiva')
+      .post('/producto/precios/actualizacion-masiva')
       .send({ usuarioId: USUARIO_ID, ...cuerpo });
   }
 
@@ -120,7 +123,7 @@ defineFeature(feature, (test) => {
     pasoAjusteALinea(when);
 
     then(/^la operación se realiza correctamente$/, () => {
-      expect(ctx.respuesta.status).toBe(200);
+      expect(ctx.respuesta.status).toBe(201);
     });
     verificarPrecioResultante(and);
     verificarPrecioResultante(and);
@@ -198,6 +201,133 @@ defineFeature(feature, (test) => {
         }
       },
     );
+  });
+
+  /**
+   * Los tres escenarios que siguen usan un producto con margen distinto de 0,
+   * porque es la única forma de distinguir un ajuste sobre el costo (que
+   * conserva el margen) de una asignación de margen (que no toca el costo).
+   */
+  function escenarioConProductoConMargen(
+    given: any,
+    and: any,
+    when: any,
+    then: any,
+    ajuste: (linea: string, valor: number) => Promise<void>,
+    expresionWhen: RegExp,
+  ) {
+    let idConMargen: number;
+
+    pasosDeFondo(given, and);
+
+    given(
+      /^existe un producto de la línea "(.*)" con costo (\d+) y margen (\d+)$/,
+      async (linea: string, costo: string, margen: string) => {
+        ctx.respuesta = await ctx.http.post('/producto').send({
+          marcaId: ctx.idMarca('CAROYENSE'),
+          lineaId: ctx.idLinea(linea),
+          alicuotaIva: 21,
+          utilizaStockMinimo: false,
+          utilizaPack: false,
+          usuarioCreatedId: USUARIO_ID,
+          costo: Number(costo),
+          porcentaje: Number(margen),
+          presentacionCantidad: ctx.productos.length + 1,
+          presentacionUnidad: 'l',
+        });
+        expect(ctx.respuesta.status).toBe(201);
+        idConMargen = ctx.ultimoProducto.id;
+      },
+    );
+
+    when(expresionWhen, async (valor: string, linea: string) => {
+      await ajuste(linea, Number(valor));
+    });
+
+    const producto = () => ctx.productoPorId(idConMargen);
+
+    then(/^el costo de ese producto (?:pasa a|sigue siendo) (\d+)$/, (esperado: string) => {
+      expect(Number(producto()?.costo)).toBe(Number(esperado));
+    });
+    and(/^su margen (?:pasa a|sigue siendo) (\d+)$/, (esperado: string) => {
+      expect(Number(producto()?.porcentaje)).toBe(Number(esperado));
+    });
+    and(/^su precio pasa a (\d+)$/, (esperado: string) => {
+      expect(Number(producto()?.precio)).toBe(Number(esperado));
+    });
+  }
+
+  test('Un ajuste sobre el costo conserva el margen del producto', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    escenarioConProductoConMargen(
+      given,
+      and,
+      when,
+      then,
+      async (linea, valor) =>
+        aplicarAjuste({
+          tipoAjuste: TipoAjustePrecio.COSTO_PORCENTUAL,
+          valor,
+          alcance: 'linea',
+          lineaId: ctx.idLinea(linea),
+        }),
+      /^aplico un ajuste de (-?\d+) por ciento a la línea "(.*)"$/,
+    );
+  });
+
+  test('Asignar un margen nuevo cambia el precio sin tocar el costo', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    escenarioConProductoConMargen(
+      given,
+      and,
+      when,
+      then,
+      async (linea, valor) =>
+        aplicarAjuste({
+          tipoAjuste: TipoAjustePrecio.MARGEN,
+          valor,
+          alcance: 'linea',
+          lineaId: ctx.idLinea(linea),
+        }),
+      /^asigno un margen de (-?\d+) a la línea "(.*)"$/,
+    );
+  });
+
+  test('Un margen negativo rechaza toda la operación', ({
+    given,
+    and,
+    when,
+    then,
+  }) => {
+    pasosDeFondo(given, and);
+
+    when(
+      /^asigno un margen de (-?\d+) a la línea "(.*)"$/,
+      async (valor: string, linea: string) => {
+        await aplicarAjuste({
+          tipoAjuste: TipoAjustePrecio.MARGEN,
+          valor: Number(valor),
+          alcance: 'linea',
+          lineaId: ctx.idLinea(linea),
+        });
+      },
+    );
+
+    then(/^la operación es rechazada con el estado (\d+)$/, (estado: string) => {
+      expect(ctx.respuesta.status).toBe(Number(estado));
+    });
+    and(/^ningún producto de la línea "(.*)" cambió su precio$/, () => {
+      expect(precioDe(porPrecioInicial.get(100))).toBe(100);
+      expect(precioDe(porPrecioInicial.get(500))).toBe(500);
+    });
   });
 
   test('Previsualizar un ajuste muestra el precio actual y el resultante sin modificar nada', ({
@@ -282,7 +412,7 @@ defineFeature(feature, (test) => {
       /^aplico un ajuste de (-?\d+) por ciento con alcance (.*)$/,
       async (valor: string, alcance: string) => {
         const cuerpo: Record<string, unknown> = {
-          tipoAjuste: 'porcentaje',
+          tipoAjuste: TipoAjustePrecio.COSTO_PORCENTUAL,
           valor: Number(valor),
           alcance: 'linea',
         };
