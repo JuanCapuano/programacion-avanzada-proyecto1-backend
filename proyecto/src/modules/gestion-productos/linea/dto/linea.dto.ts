@@ -30,6 +30,9 @@ export class LineaDto {
   @IsNotEmpty()
   utilizaStockMinimo: boolean;
 
+  @IsOptional()
+  superLinea: { id: number; denominacion: string } | null;
+
   @ApiProperty({
     example: '',
     description: 'Observaciones varias sobre la linea',

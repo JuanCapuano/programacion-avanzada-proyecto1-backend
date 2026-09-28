@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { LocalidadController } from './localidad.controller';
 import { LocalidadService } from '../services/localidad.service';
+import { AuthGuard } from 'src/modules/gestion-usuario/auth/auth.guard';
 
 describe('LocalidadController', () => {
   let controller: LocalidadController;
@@ -8,8 +9,11 @@ describe('LocalidadController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [LocalidadController],
-      providers: [LocalidadService],
-    }).compile();
+      providers: [{ provide: LocalidadService, useValue: {} }],
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<LocalidadController>(LocalidadController);
   });

@@ -27,6 +27,7 @@ import { EmpresaOperacionModule } from './modules/organizacion/empresa-operacion
 import { ClienteOperacionModule } from './modules/organizacion/cliente-operacion/cliente-operacion.module';
 import { ProductoOperacionModule } from './modules/gestion-productos/producto-operacion/producto-operacion.module';
 import { BusquedasModule } from './modules/gestion-documentos/busquedas/busquedas.module';
+import { HistorialPrecioProductoModule } from './modules/gestion-productos/historial-precio-producto/historial-precio-producto.module';
 
 @Module({
   imports: [
@@ -47,7 +48,7 @@ import { BusquedasModule } from './modules/gestion-documentos/busquedas/busqueda
       // TypeOrmModule.forFeature([Entidad]) en tus módulos
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       // entities,
-      synchronize: false, // Nunca usar en producción, solo para desarrollo
+      synchronize: true, // Nunca usar en producción, solo para desarrollo
       ssl: process.env.DB_SSL === 'true',
     }),
 
@@ -76,6 +77,7 @@ import { BusquedasModule } from './modules/gestion-documentos/busquedas/busqueda
     ClienteOperacionModule,
     ProductoOperacionModule,
     BusquedasModule,
+    HistorialPrecioProductoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

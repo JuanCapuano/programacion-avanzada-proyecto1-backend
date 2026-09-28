@@ -26,4 +26,5 @@ export interface ILineaRepository {
     data: UpdateLineaDto,
   ): Promise<Linea>;
   remove(data: Linea,usuario:Usuario): Promise<Linea>;
+  existsLineasActivasBySuperLinea(superLineaId: number): Promise<boolean>;
 }

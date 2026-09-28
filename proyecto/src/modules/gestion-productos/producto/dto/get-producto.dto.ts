@@ -2,12 +2,15 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   Min,
 } from 'class-validator';
+import { OrigenDenominacion } from '../domain/enums/origen-denominacion.enum';
 /*
 Se Utiliza para la busqueda y llenado de la tabla
 */
@@ -24,6 +27,16 @@ export class GetProductoDto {
   })
   @IsString()
   denominacion: string;
+
+  @ApiProperty({
+    enum: OrigenDenominacion,
+    enumName: 'OrigenDenominacion',
+    example: OrigenDenominacion.AUTOMATICA,
+    description:
+      'AUTOMATICA: generada desde marca, línea y presentación. MANUAL: escrita por un usuario (CR-005).',
+  })
+  @IsEnum(OrigenDenominacion)
+  origenDenominacion: OrigenDenominacion;
 
   @ApiProperty({
     example: '1158 Caja de tornillos',
@@ -131,5 +144,14 @@ export class GetProductoDto {
   @IsString()
   codigoReferencia: string;
 
+  @ApiProperty({
+    example: '1.5 l',
+    description:
+      'Presentación del producto (cantidad + unidad), como texto listo para mostrar (CR-002). Ausente si el producto no tiene presentación cargada.',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  presentacion?: string;
 
 }

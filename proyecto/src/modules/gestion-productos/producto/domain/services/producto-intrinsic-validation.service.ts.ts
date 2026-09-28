@@ -1,13 +1,48 @@
 // domain/services/producto-intrinsic-validation.service.ts
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { TipoAjustePrecio } from '../enums/tipo-ajuste-precio.enum';
 
 @Injectable()
 export class ProductoIntrinsicValidationService {
+  validarCosto(costo: unknown): void {
+    if (costo === undefined || costo === null) {
+      throw new BadRequestException('El costo es obligatorio');
+    }
+
+    if (typeof costo !== 'number' || !Number.isFinite(costo)) {
+      throw new BadRequestException('El costo debe ser numérico');
+    }
+
+    if (costo <= 0) {
+      throw new BadRequestException('El costo debe ser mayor a 0');
+    }
+  }
+
   /**
-   * Valida todos los datos intrínsecos del producto
+   * CR-001 · US-1: el margen es opcional, pero cuando viene debe ser numérico
+   * y no puede ser negativo, para no generar precios de venta absurdos.
+   */
+  validarMargen(margen: unknown): void {
+    if (margen === undefined || margen === null) {
+      return;
+    }
+
+    if (typeof margen !== 'number' || !Number.isFinite(margen)) {
+      throw new BadRequestException('El margen debe ser numérico');
+    }
+
+    if (margen < 0) {
+      throw new BadRequestException('El margen no puede ser negativo');
+    }
+  }
+
+  /**
+   * Valida todos los datos intrínsecos del producto, los datos intrínsecos son aquellos que no dependen de otras entidades 
+   * lo usamos para validar los datos básicos del producto, como denominación, marca, línea, precios y alícuota IVA
    */
   validarDatosBasicos(datos: {
-    denominacion: string;
+    /** Opcional (CR-005): si no viene, la genera y valida el dominio. */
+    denominacion?: string;
     marcaId: number;
     lineaId: number;
     alicuotaIva?: number;
@@ -15,7 +50,9 @@ export class ProductoIntrinsicValidationService {
     precioCliente?: number;
     precioOcasional?: number;
   }): void {
-    this.validarDenominacion(datos.denominacion);
+    if (datos.denominacion !== undefined) {
+      this.validarDenominacion(datos.denominacion);
+    }
     this.validarIds(datos.marcaId, datos.lineaId);
     this.validarPrecios(
       datos.precioMayorista,
@@ -97,6 +134,29 @@ export class ProductoIntrinsicValidationService {
           'El precio Mayorista no puede superar el precio Ocasional',
         );
       }
+    }
+  }
+
+  /**
+   * Valida el valor de la actualización masiva según el tipo de ajuste (CR-006).
+   */
+  validarAjusteMasivo(tipoAjuste: TipoAjustePrecio, valor: number): void {
+    if (tipoAjuste === TipoAjustePrecio.MARGEN) {
+      if (valor < 0) {
+        throw new BadRequestException('El margen no puede ser negativo');
+      }
+      return;
+    }
+
+    if (valor === 0) {
+      throw new BadRequestException(
+        'El valor del ajuste no puede ser 0 porque no produce cambios',
+      );
+    }
+    if (tipoAjuste === TipoAjustePrecio.COSTO_PORCENTUAL && valor <= -100) {
+      throw new BadRequestException(
+        'El porcentaje debe ser mayor a -100% (con -100% el costo quedaría en 0)',
+      );
     }
   }
 

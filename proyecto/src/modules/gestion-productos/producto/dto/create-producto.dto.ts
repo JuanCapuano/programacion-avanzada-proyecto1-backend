@@ -9,22 +9,30 @@ import {
   IsNumber,
   IsInt,
   IsEnum,
+  Min,
+  IsPositive,
 } from 'class-validator';
 import { AlicuotaIva } from 'src/modules/organizacion/enums/alicuota-iva.enum';
+import { UnidadMedida } from '../domain/enums/unidad-medida.enum';
+import {
+  DENOMINACION_LONGITUD_MAXIMA,
+  DENOMINACION_PATRON,
+  transformarDenominacionAlta,
+} from './denominacion.validacion';
 
 export class CreateProductoDto {
-  @Transform(({ value }) => value.trim().toLowerCase())
-  @IsString({ message: 'La denominación debe ser una cadena de texto.' }) // Valida que sea string
-  @IsNotEmpty({ message: 'La denominación no puede estar vacía.' }) // Valida que no esté vacía
-  @MaxLength(255, { message: 'La denominación no puede estar vacía.' })
-  /*  @Matches(/^[A-Za-z0-9 áéíóúÁÉÍÓÚñÑ.\-/]+$/, {
-    message:
-      'La denominación solo puede contener letras, números, espacios, puntos, guiones y barras.',
-  }) */
-  @Matches(/^[\w áéíóúÁÉÍÓÚñÑ.\-/%]+$/, {
-    message: 'La denominación contiene caracteres inválidos ',
+
+  /*Opcional (CR-005): si no viene, o viene vacía, el dominio genera ladenominación automática. Si el usuario la escribe, queda como manual.*/
+  @Transform(transformarDenominacionAlta)
+  @IsOptional()
+  @IsString({ message: 'La denominación debe ser una cadena de texto.' })
+  @MaxLength(DENOMINACION_LONGITUD_MAXIMA, {
+    message: `La denominación no puede superar los ${DENOMINACION_LONGITUD_MAXIMA} caracteres.`,
   })
-  denominacion: string;
+  @Matches(DENOMINACION_PATRON, {
+    message: 'La denominación contiene caracteres inválidos.',
+  })
+  denominacion?: string;
 
   @IsOptional()
   @IsString()
@@ -73,9 +81,16 @@ export class CreateProductoDto {
   @Transform(({ value }) => value === 'true' || value === true)
   envioGratis?: boolean;
 
-  @IsOptional()
-  @IsNumber()
-  costo?: number;
+  @IsNumber(
+    {},
+    {
+      message: ({ value }) =>
+        value === undefined || value === null
+          ? 'El costo es obligatorio'
+          : 'El costo debe ser numérico',
+    },
+  )
+  costo: number; 
 
   @IsBoolean()
   utilizaPack: boolean;
@@ -98,16 +113,19 @@ export class CreateProductoDto {
   marcaId: number;
 
 
+  /**
+   * CR-001 · US-1: el margen es opcional; si viene, debe ser numérico y no
+   * puede ser negativo.
+   */
   @IsOptional()
-  @IsNumber()
+  @IsNumber({}, { message: 'El margen debe ser numérico' })
+  @Min(0, { message: 'El margen no puede ser negativo' })
   porcentaje?: number;
 
-  @IsOptional()
-  @IsNumber()
-  precio: number;
 
   createdAt?: Date;
 
+  @IsOptional()
   @IsEnum(AlicuotaIva, {
     message:
       'tipo debe ser ALICUOTA_0  ALICUOTA_105, ALICUOTA_21, ALICUOTA_27,',
@@ -125,5 +143,17 @@ export class CreateProductoDto {
   @IsInt({ message: 'El usuarioCreatedId debe ser un número entero.' })
   usuarioCreatedId: number;
 
+  /**
+   * Presentación (CR-002): cantidad y unidad son obligatorias, no hay
+   * presentación "a medias".
+   */
+  @IsNumber({}, { message: 'La cantidad de la presentación debe ser un número.' })
+  @IsPositive({ message: 'La cantidad de la presentación debe ser mayor a 0.' })
+  presentacionCantidad: number;
+
+  @IsEnum(UnidadMedida, {
+    message: `La unidad de la presentación debe ser una de: ${Object.values(UnidadMedida).join(', ')}.`,
+  })
+  presentacionUnidad: UnidadMedida;
 
 }

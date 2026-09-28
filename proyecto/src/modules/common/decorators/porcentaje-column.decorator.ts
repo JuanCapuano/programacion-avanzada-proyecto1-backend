@@ -2,7 +2,7 @@ import { Column } from 'typeorm';
 
 export function PorcentajeColumn(defaultValue: number = 0.0) {
   return Column('decimal', {
-    precision: 5,
+    precision: 10,
     scale: 2,
     default: defaultValue,
     transformer: {
