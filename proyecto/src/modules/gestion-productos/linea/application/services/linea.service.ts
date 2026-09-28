@@ -195,7 +195,7 @@ export class LineaService {
       `Resultado: ${exists ? `Encontrado ID ${exists.id}` : 'No encontrado'}`,
     );
 
-    if (exists && exists.id !== id) {
+    if (exists && exists.deletedAt === null && exists.id !== id) {
       this.logger.warn(
         ` Conflicto: denominación ya está en uso: ${denominacionNormalizada} (ID existente: ${exists.id})`,
       );
